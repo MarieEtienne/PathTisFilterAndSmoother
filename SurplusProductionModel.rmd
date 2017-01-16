@@ -1,0 +1,221 @@
+---
+title: Mise en oeuvre du filtrage et lisaage par méthodes particulaires sur un modèle
+  de production de biomass
+author: "MP Etienne"
+date: "January 3, 2017"
+output:
+    pdf_document:
+      includes:
+        in_header: particule.sty
+      keep_tex: yes
+---
+# Simulation du modèle de production de biomass
+## niveau 2
+
+```{r}
+
+# Population Dynamic model simulation ----------------------------------
+set.seed(22)
+nYear <- 30
+biomass <- rep(NA, nYear)
+capt <- rep(NA, nYear)
+K <- 300 ## carrying capacity
+r <- 1.02 ## recruitement rate
+q <- 0.5
+epsilon <- 10
+
+sigmaBiomass <- 0.15
+biomass[1] <- rnorm(1, mean=K, sd=K/10)
+
+for( year in 2:nYear){
+  capt[year-1] <- max(min(rnorm(1, mean=r*K/6, 
+                                sd=r*K/16),
+                          biomass[year-1]), epsilon)
+  biomass[year] <- max((biomass[year-1] + r  * biomass[year-1]*
+                      (1- biomass[year-1]/K)-capt[year-1])*exp(
+                        rnorm(1, mean=-sigmaBiomass^2/2, sd=sigmaBiomass)), epsilon)
+}
+plot(biomass, ylim=range(c(0,range(biomass))), main='biomass evolution')
+
+
+abundanceIndex <- q * biomass*exp(rnorm(nYear, mean=-sigmaBiomass^2/2, sd=sigmaBiomass))
+plot(1:nYear, abundanceIndex, type='l', main='abundance index',  ylim=range(c(0,range(abundanceIndex))))
+```
+
+L'inférence pour ce type de modèle est classiquement menée dans un cadre bayésien dans un logiciel type bgs ou jags. Ce type de logiciel demande une intialisation cohérente des paramètres ce qui peut être compliqué. les algorithmes particulaires, peuvent permettre de construire cette initialisation.
+
+Plus généralement, si on souhaite faire de l'estimation fréquentiste, les méthodes particulaires permettentde mettre en oeuvre un algorithme type MOnte Carlo EM.
+
+
+# Présentation de la problématique 
+## Formalisme général
+On note $n$ le nombre total d'observations, $\Ybf= Y_{0:n}=(Y_0, \ldots, Y_n)$ les observations (les indices d'abondance) et $\Xbf=X_{0:n}$ les variables non observées (la biomasse réelle). 
+
+Le modèle s'écrit donc
+\begin{align}
+X_{i+1} &= X_i + r X_i \left(1- \frac{B_i}{K}\right) exp(\varepsilon_{i+1}), \quad \varepsilon_i\overset{i.i.d}{\sim}\mathcal{N}\left(-\frac{\sigma^2}{2}, \sigma^2\right)\\
+Y_i\vert X_i &= q X_i exp(\nu_{i}), \quad \nu_i\overset{i.i.d}{\sim}\mathcal{N}\left(-\frac{\sigma^2}{2}, \sigma^2\right)
+\end{align}
+
+In order to avoid identifiability issues, the variance of the process error and the variance of the dynmac process errors are assumed to be equal.
+
+On note $g_{\theta}(X_i,.)$ la loi de $Y_i$ conditionnelement à $X_i$, on note $m_{\theta}(X_{i}, .)$ le noyau de  transition de $X_i$ vers $X_{i+1}$ et $\nu_{\theta}()$, la loi initiale de $X_0$.
+## Loi de filtrage
+
+$\Xbf$ est un processus markovien non linéaire observé indirectement au travers de $\Ybf$. On appelle loi de lissage la loi de $X_{1:k}\vert Y_{1:k}$. Supposons que les paramètres du modèle sont connus, la loi de filtrage est différente de la loi initiale puisque les $Y$ apportent de l'information sur l'état du processus $X$ ou autrement dit, la connaissance de l'indice d'abondance jusqu'à l'année $k$ donne une information sur l'état réel du stock jusqu'à lannée $k$. 
+
+Dans des cas très particulier (modèle gaussien linéaire), on peut obtenir une forme explicite de la loi de filtrage (c'est le filtrage de Kalman) mais ca n'est en général pas le cas. L'idée des  méthodes de filtrage particulaires est d'approcher par un échantillon de particules issues de cette loi.
+
+Ce sont des méthodes itératives, on va commencer par générer un échantillon de $X_1\vert Y_1$ et on va le propager pour obtenir un échantillon de $X_2\vert Y_{1:2}$, etc ....
+
+## Loi de lissage
+Si on a accès à l'ensemble des indices d'abondance jusqu'à l'année $n$, et que le but est de pouvoir utiliser au mieux cette information on va avoir envie d'utiliser la loi de lissage, c'est à dire la loi de $X_i\vert Y_{1:n}$ ou si on veut reconstruire les historiques de biomasses les plus probables, on peu voiloir des lois jointes du type $X_{k_1:k_2}\vert Y_{1:n}$.
+
+Les méthodes particulaires peuvent être utilisées également pour obtenir des réalisations de ces lois. Après avoir obtenu les lois de filtrage jusqu'à l'instant $n$, on va pouvoir utiliser d'autres algorithmes pour obtenir des  échantillons de particules issus des lois de lissage.
+
+
+# Mise en oeuvre d'un algorithme particulaire pour obtenir la loi de lissage
+
+## Rappel Importance sampling
+Pour obtenir un échantillon issu d'une loi cible $f$ qu'on ne sait pas simuler, il est possible d'utiliser une loi instrumentale $g$ de la manière suivante.
+
+\begin{algorithm}
+\For{ i in 1:G}{
+  Draw $Z_i\sim g(.)$\;
+  Compute weight $w_i=f(Z_i)/g(Z_i)$\;
+}
+Compute $w_+=\sum_{i=1}^G w_i$\;
+Define normalized weight $\tilde{w}_i=w_i/w_+$\;
+\caption{Importance Sampling algorithm}
+\end{algorithm}
+
+
+On peut aussi ajouter une étape de resampling pour avoir un échantillon non pondéré
+\begin{algorithm}
+\For{ i in 1:G}{
+  Draw $Z_i\sim g(.)$\;
+  Compute weight $w_i=f(Z_i)/g(Z_i)$\;
+}
+Compute $w_+=\sum_{i=1}^G w_i$\;
+Define normalized weight $\tilde{w}_i=w_i/w_+$\;
+\For{ i in 1:G}{
+  Sample $I_i$ in $\left\lbrace 1, \ldots,G\right\rbrace$ such that $P(I_i=j)=\tilde{W}_j$
+  Define $\tilde{Z}_i= Z_{I_i}$
+}
+\caption{Importance Sampling-Resampling algorithm}
+\end{algorithm}
+
+
+## Importance sampling sequentiel
+L'idée d'un filtrage particulaire est d'itérer ce processus d'importance sampling resampling pour obtenir des échantillons de la loi cible.
+
+Il faut avoir une loi instrumentale $R(x, x')$ qui permet de propager une particule dans l'état $x$ à un instant donné vers une particule dans l'état $x\prime$ au temps suivant.
+Si on dispose au temps $k$ d'un échantillon de la loi de filtrage, l'idée est de propager cet échantillon avec ce noyau $R$ et de pondérer chaque particule de amnière appropriée. 
+Si on s'intéresse à la loi de $X_{k+1}\vert X_k, Y_{k+1}$, on peut écrire
+\begin{align*}
+[X_{k+1}\vert X_k, Y_{1:k+1}] = & \frac{[X_{k+1} X_k, Y_{1:k+1}]}{[ X_k, Y_{1:k+1}]}\cr
+& \frac{[Y_{k+1}\vert X_{k+1}][X_{k+1} \vert X_k][X_{k}\vert Y_{1:k}]}{[ X_k, Y_{1:k+1}]}\cr
+&\propto \frac{[Y_{k+1}\vert X_{k+1}][X_{k+1} \vert X_k][X_{k}\vert Y_{1:k}]}{[ X_k, Y_{1:k+1}]}\cr
+&\propto \frac{g(X_{k+1}, Y_{k+1}) m( X_k, X_{k+1})[X_{k}\vert Y_{1:k}]}{[ X_k, Y_{1:k+1}]}
+\end{align*}
+
+
+\begin{algorithm}
+\For{ i in 1:G}{
+  Sample $X_0^i \sim r_0$\;
+  Compute $w_0^i=\nu(X_0^i)/r_0(X_0^i)$\;
+}
+\For{ k in 1:n}{
+  \For{ i in 1:G}{
+  Sample $X_k^i \sim R_k(X_{k-1}^i,.)$\;
+  Compute $w_k^i=w_{k-1}^i \frac{m_{\theta}(X_{k-1}^i, X_k^i) g(X_k^i,Y_k)}{ R_k(X_{k-1}^i,X_{k}^i) }$\;
+  }
+}
+\caption{Particle filter algorithm 1}
+\end{algorithm}
+
+
+On peut définir les fionctions d'intérêt, \verb+Propag$ va nous servir de loi de proposition et les autres sont les transitions $m_{\theta}$ et $g$ définies plus haut.
+```{r}
+r0 <- function(G, theta){
+  exp(runif(G, min=log(theta$K/5), max=log(5*theta$K)))
+}
+
+dr0 <- function(x0, theta){
+  return(rep(1/length(x0), length(x0) ) )
+}
+
+
+rPropag <- function(x, sdPropag, min, nIterMax =20){
+  ## min is the minimal acceptable value
+  meanValue <- ifelse(x>min, x-min, 1)
+  xprime<- min+exp(rnorm(length(x), mean=log(meanValue)-sdPropag^2/2, sd=sdPropag))
+  return(xprime)
+}
+
+
+dPropag <- function(y, x, sdPropag, min){
+  
+  meanValue <- ifelse(x>min, x-min, 1)
+  return(dnorm(log(y-min), mean=log(meanValue)-sdPropag^2/2, sd=sdPropag))
+}
+
+mtheta<- function(x,xprime, theta, capt){
+  dnorm(log(xprime), mean=log(x+theta$r*x*(1-x/theta$K)- capt)-
+          theta$sigmaBiomass^2/2, sd=theta$sigmaBiomass)
+}
+
+g<-function(x,y,theta){
+  dnorm(log(y), mean=log(theta$q*x)-theta$sigmaBiomass^2/2, sd=theta$sigmaBiomass)
+}
+
+
+```
+
+On peut alors mettre en oeuvre la premiere version du filtre
+```{r}
+theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r)
+G <- 10
+sdPropag <- 1
+X <- matrix(NA, ncol=nYear, nrow=G)
+X[,1] <- r0(G, theta)
+weightX <- matrix(NA, ncol=nYear, nrow=G)
+weightX[,1] <- 1/G
+for(year in 2:nYear){
+  X[,year] <- rPropag(X[,year-1],sdPropag = sdPropag, min=capt[year-1])
+  weightX[,year]=weightX[,year-1]*mtheta(X[,year-1], X[,year], theta, capt[year-1])*g(X[,year], abundanceIndex[year], theta)/dPropag(X[,year], X[,year-1],sdPropag = sdPropag, min=capt[year-1])
+  weightX[is.nan(weightX[,year]),year] <- 0
+  weightX[,year] <-   weightX[,year]/sum(  weightX[,year])
+}
+
+```
+
+
+
+Pour eviter de propager de strajectoires peu prometteuses, on peu ajouter une étape de resampling
+```{r}
+theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r)
+G <- 50
+sdPropag <- 1
+X <- matrix(NA, ncol=nYear, nrow=G)
+X[,1] <- r0(G, theta)
+weightX <- matrix(NA, ncol=nYear, nrow=G)
+weightX[,1] <- 1/G
+for(year in 2:nYear){
+  indToPropag <- sample(1:G, size=G, replace=T, prob=weightX[,year-1])
+  X[,year] <- rPropag(X[indToPropag,year-1],sdPropag = sdPropag, min=capt[year-1])
+  weightX[,year]=weightX[indToPropag,year-1]*mtheta(X[indToPropag,year-1], X[,year], theta, capt[year-1])*g(X[,year], abundanceIndex[year], theta)/dPropag(X[,year], X[indToPropag,year-1],sdPropag = sdPropag, min=capt[year-1])
+  weightX[is.nan(weightX[,year]),year] <- 0
+  weightX[,year] <-   weightX[,year]/sum(  weightX[,year])
+}
+
+
+plot(x=1:nYear, y=rep(NA, nYear), ylim=c(0,600), xlab = '', ylab='', pch=19)
+palette(rainbow(G))
+for(i in 1:G){
+lines(1:nYear, X[i,], cex=G/10*weightX[i,], type='p', col=i, pch=19)  
+}
+points(x=1:nYear, y=biomass, pch=19, cex=1.5)
+```
+
+
