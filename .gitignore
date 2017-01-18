@@ -4,4 +4,9 @@
 .Ruserdata
 *.pdf
 *.Rproj
+*.log
+*.toc
+*.synctex.gz
+SurplusProductionModel.tex
+*-concordance.tex
 .gitignore~

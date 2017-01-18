@@ -8,7 +8,8 @@ header-includes:
    - \newcommand{\Xbf}{\boldsymbol{X}}
    - \newcommand{\Ybf}{\boldsymbol{Y}}
    
-output: pdf_document
+output: pdf_document 
+fig_caption: yes
 ---
 
 L'inférence pour ce type de modèle est classiquement menée dans un cadre bayésien dans un logiciel type BUGS ou JAGS. Ce type de logiciel demande une intialisation cohérente des paramètres, ce qui peut être compliqué. Les algorithmes particulaires, peuvent permettre de construire cette initialisation.
@@ -310,42 +311,46 @@ dPropag <- function(x_new, x_old,theta,Y_new=NA,C_new=NA){
 
 # Un premier algorithme de filtrage
 On effectue un premier algorithme de filtrage:
-```{r,echo= -c(1:2)}
+```{r}
 #Initialisation
 sdRW <- 10
-theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r,sdRW=sdRW)
-G <- 1000#50 particules
-X <- matrix(NA, ncol=nYear, nrow=G)
-X[,1] <- rf0(G=G,theta= theta,
+theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass,
+           r=r,sdRW=sdRW)#Paramètres pour la génération de particules
+#et calculs de poids
+G <- 100#Nombre de particules
+Xs1 <- matrix(NA, ncol=nYear, nrow=G)#Particules
+Xs1[,1] <- rf0(G=G,theta= theta,
              Y0 = abundanceIndex[1],C0 = capt[1] )
-weightX <- matrix(NA, ncol=nYear, nrow=G)
-weightX[,1] <- df0(x0=X[,1],theta = theta,
-                   Y0 = abundanceIndex[1],C0 = capt[1])
-weightX[,1] <- weightX[,1]/sum(weightX[,1])
+ws1 <- matrix(NA, ncol=nYear, nrow=G)#Poids
+ws1[,1] <- df0(x0=Xs1[,1],theta = theta,
+              Y0 = abundanceIndex[1],C0 = capt[1])
+ws1[,1] <- ws1[,1]/ws1[,1]
 for(year in 2:nYear){
-  X[,year] <- rPropag(x_old = X[,year-1],
+  Xs1[,year] <- rPropag(x_old = Xs1[,year-1],
                       theta = theta,
                       Y_new = abundanceIndex[year],
-                      C_new = capt[year])
-  mth <- mtheta(x_old =X[,year-1],
-                x_new= X[,year],
+                      C_new = capt[year])#Génération de nvelles particules
+  mth <- mtheta(x_old =Xs1[,year-1],
+                x_new= Xs1[,year],
                 theta= theta,
-                capt_old=capt[year-1])
-  gfact <- g(X[,year], abundanceIndex[year], theta)
-  pfact <- dPropag(x_new = X[,year],x_old= X[,year-1],
+                capt_old=capt[year-1])#densité de transition du modele
+  gfact <- g(Xs1[,year], abundanceIndex[year], theta)#Dnsité d'observation
+  pfact <- dPropag(x_new = Xs1[,year],x_old= Xs1[,year-1],
                    theta = theta, Y_new = abundanceIndex[year],
-                   C_new = capt[year])
-  weightX[,year]=weightX[,year-1]*(mth*gfact/pfact)
-  weightX[,year] <-   weightX[,year]/sum(  weightX[,year])
+                   C_new = capt[year])#Densité de la loi de proposition
+  ws1[,year]=ws1[,year-1]*(mth*gfact/pfact)#Actualisation des poids
+  ws1[,year] <-   ws1[,year]/sum(ws1[,year])#Normalisation des poids
 }
 ```
-Regardons l'évolution des poids de filtrage
+On a donc généré un ensemble de particules et leurs poids associés. On peut commencer par regarder l'évolution des poids de filtrage:
 ```{r}
-matplot(t(weightX),type="b",pch=20,xlab="Indice k",ylab="Poids",
-        main="Evolution des poids de filtrage\n cas sans resampling")
+matplot(t(ws1),type="b",pch=20,xlab="Indice k",ylab="Poids",
+        main="Evolution des poids de filtrage\n cas sans resampling",
+        lty=1)
 ```
 Il y a dégénérécence des poids de filtrage.
 Pour palier ce problème, on effectue un resampling. À chaque étape, on duplique les particules ayant un "avenir prometteur".
+
 # Filtrage avec resampling
 Avant la génération de nouvelles particules, on retire les parents parmi les parents générés à l'étape précédente, selon leurs anciens poids. 
 ```{r,echo= -c(1:2)}
@@ -353,116 +358,74 @@ plot(1:nYear,biomass, ylim=range(c(range(biomass),range(bounds))),
      main='Evolution de la biomasse',xlab="Année",type="n",pch=20,
      ylab="Masse",bty="n")
 matplot(bounds,lty=2,col="darkgrey",add=T,type="l")
-#Initialisation
-sdRW <- 10
-theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r,sdRW=sdRW)
-G <- 1000#50 particules
-X <- matrix(NA, ncol=nYear, nrow=G)
-X[,1] <- rf0(G=G,theta= theta,
+#Initialisation, identique à précédemment
+Xs2 <- matrix(NA, ncol=nYear, nrow=G)
+Xs2[,1] <- rf0(G=G,theta= theta,
              Y0 = abundanceIndex[1],C0 = capt[1] )
-weightX <- matrix(NA, ncol=nYear, nrow=G)
-weightX[,1] <- df0(x0=X[,1],theta = theta,
+ws2 <- matrix(NA, ncol=nYear, nrow=G)
+ws2[,1] <- df0(x0=Xs2[,1],theta = theta,
                    Y0 = abundanceIndex[1],C0 = capt[1])
-weightX[,1] <- weightX[,1]/sum(weightX[,1])
-points(rep(1,G),X[,1],cex=weightX[,1]/max(weightX[,1]),
+ws2[,1] <- ws2[,1]/sum(ws2[,1])
+points(rep(1,G),Xs2[,1],cex=ws2[,1]/max(ws2[,1]),
        col="darkgreen",pch=20)
 
 for(year in 2:nYear){
-  inds_rspl <- sample(1:G,size=G,replace=T,prob = weightX[,year-1])
-  X[,year] <- rPropag(x_old = X[inds_rspl,year-1],
+  inds_rspl <- sample(1:G,size=G,replace=T,
+                      prob = ws2[,year-1])#Rééchantillonnage
+  Xs2[,year] <- rPropag(x_old = Xs2[inds_rspl,year-1],
                       theta = theta,
                       Y_new = abundanceIndex[year],
                       C_new = capt[year])
-  mth <- mtheta(x_old =X[inds_rspl,year-1],
-                x_new= X[,year],
+  mth <- mtheta(x_old =Xs2[inds_rspl,year-1],
+                x_new= Xs2[,year],
                 theta= theta,
                 capt_old=capt[year-1])
-  gfact <- g(X[,year], abundanceIndex[year], theta)
-  pfact <- dPropag(x_new = X[,year],x_old= X[inds_rspl,year-1],
+  gfact <- g(Xs2[,year], abundanceIndex[year], theta)
+  pfact <- dPropag(x_new = Xs2[,year],x_old= Xs2[inds_rspl,year-1],
                    theta = theta, Y_new = abundanceIndex[year],
                    C_new = capt[year])
-  weightX[,year]=(mth*gfact/pfact)
-  weightX[,year] <-   weightX[,year]/sum(  weightX[,year])
-  points(rep(year,G), X[,year],col="darkgreen",
-         cex=weightX[,year]/max(weightX[,year]),pch=20)
+  ws2[,year]=(mth*gfact/pfact)
+  ws2[,year] <-   ws2[,year]/sum(ws2[,year])
+  points(rep(year,G), Xs2[,year],col="darkgreen",
+         cex=ws2[,year]/max(ws2[,year]),pch=20)
 }
 lines(biomass,type="b",pch=20)
 ```
 Regardons l'évolution des poids de filtrage
 ```{r}
-matplot(t(weightX),type="b",pch=20,xlab="Indice k",ylab="Poids",
+matplot(t(ws2),type="b",pch=20,xlab="Indice k",ylab="Poids",
         main="Evolution des poids de filtrage\n cas sans resampling")
 ```
-
+On peut visualiser les estimateurs à densité des distributions de filtrage. Estimateurs calculés à l'aide des particules et de leur poids de filtrage.
 ```{r}
-# par(mfrow=c(4,4))
-# sapply(1:nYear,function(i){
-#   plot(density(X[,i],weights = weightX[,i]),main=i)
-#   abline(v=biomass[i])
-# })
-# par(mfrow=c(4,4))
-# sapply(1:nYear,function(i){
-#   plot(X[,i],weightX[,i],main=i)
-#   abline(v=biomass[i])
-# })
-# par(mfrow=c(4,4))
-# sapply(1:nYear,function(i){
-#   hist(weightX[,i],main=i)
-#   abline(v=biomass[i])
-# })
+par(mfrow=c(1,1))
+k=10#Indice à représenter
+plot(density(Xs2[,k],weights = ws2[,k]),
+     main=bquote(paste('Loi de filtrage de '*'X'[.(k)])),
+     xlab="Biomasse",ylab="Densité")
+abline(v=biomass[k],lty=2)
+points(Xs2[,k],rep(0,G) ,col="darkgreen",
+        cex=ws2[,k]/max(ws2[,k]),pch=20)
 ```
 
-<!-- dPropag <- function(y, x, sdPropag, min){ -->
+# Lissage particulaire
 
-<!--   meanValue <- ifelse(x>min, x-min, 1) -->
-<!--   return(dnorm(log(y-min), mean=log(meanValue)-sdPropag^2/2, sd=sdPropag)) -->
-<!-- } -->
-<!-- ``` -->
+Dans la partie précédente, nous avns approcher, pour tout $k$, la loi de $X_k\vert Y_{0:k}$. Intuitivement, on se doute que les observations $Y_{(k+1):n}$ non utilisées pourraient pourtant fournir une information sur la distribution de $X_k$. Ainsi, on va s'intéresser maintenant à la \textbf{loi de lissage} de $X_k$, à savoir celle de $X_k\vert Y_{0:n}$.
 
-<!-- On peut alors mettre en oeuvre la premiere version du filtre -->
-<!-- ```{r} -->
-<!-- theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r) -->
-<!-- G <- 10 -->
-<!-- sdPropag <- 1 -->
-<!-- X <- matrix(NA, ncol=nYear, nrow=G) -->
-<!-- X[,1] <- r0(G, theta) -->
-<!-- weightX <- matrix(NA, ncol=nYear, nrow=G) -->
-<!-- weightX[,1] <- 1/G -->
-<!-- for(year in 2:nYear){ -->
-<!--   X[,year] <- rPropag(X[,year-1],sdPropag = sdPropag, min=capt[year-1]) -->
-<!--   weightX[,year]=weightX[,year-1]*mtheta(X[,year-1], X[,year], theta, capt[year-1])*g(X[,year], abundanceIndex[year], theta)/dPropag(X[,year], X[,year-1],sdPropag = sdPropag, min=capt[year-1]) -->
-<!--   weightX[is.nan(weightX[,year]),year] <- 0 -->
-<!--   weightX[,year] <-   weightX[,year]/sum(  weightX[,year]) -->
-<!-- } -->
+## Approche trajectorielle
 
-<!-- ``` -->
+On note ici $\xi_{0:n}^i$ la $i$-ème trajectoire de particules générée avec sa généalogie par l'algorithme de filtrage. À chaque trajectoire est associé le poids de filtrage final $\omega_n^i$. On note $\xi_{0:n}^i(k)$ la valeur de la trajectoire à l'instant $k$.
+Lorsque qu'il n'y a pas de rééchantillonnage, cette trajectoire consiste en la succession des $\xi_k^i$, ainsi $\xi_{0:n}^i(k)=\xi_k^i$.
+À partir de notre premier filtrage effectué plus haut, on peut obtenir ces trajectoires simulées.
 
-
-
-<!-- Pour eviter de propager de strajectoires peu prometteuses, on peut ajouter une étape de resampling -->
-<!-- ```{r} -->
-<!-- theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass, r=r) -->
-<!-- G <- 50 -->
-<!-- sdPropag <- 1 -->
-<!-- X <- matrix(NA, ncol=nYear, nrow=G) -->
-<!-- X[,1] <- r0(G, theta) -->
-<!-- weightX <- matrix(NA, ncol=nYear, nrow=G) -->
-<!-- weightX[,1] <- 1/G -->
-<!-- for(year in 2:nYear){ -->
-<!--   indToPropag <- sample(1:G, size=G, replace=T, prob=weightX[,year-1]) -->
-<!--   X[,year] <- rPropag(X[indToPropag,year-1],sdPropag = sdPropag, min=capt[year-1]) -->
-<!--   weightX[,year]=weightX[indToPropag,year-1]*mtheta(X[indToPropag,year-1], X[,year], theta, capt[year-1])*g(X[,year], abundanceIndex[year], theta)/dPropag(X[,year], X[indToPropag,year-1],sdPropag = sdPropag, min=capt[year-1]) -->
-<!--   weightX[is.nan(weightX[,year]),year] <- 0 -->
-<!--   weightX[,year] <-   weightX[,year]/sum(  weightX[,year]) -->
-<!-- } -->
-
-
-<!-- plot(x=1:nYear, y=rep(NA, nYear), ylim=c(0,600), xlab = '', ylab='', pch=19) -->
-<!-- palette(rainbow(G)) -->
-<!-- for(i in 1:G){ -->
-<!-- lines(1:nYear, X[i,], cex=G/10*weightX[i,], type='p', col=i, pch=19)   -->
-<!-- } -->
-<!-- points(x=1:nYear, y=biomass, pch=19, cex=1.5) -->
-<!-- ``` -->
-
-
+```{r,echo=F,fig.cap="La trajectoire en noir a le plus grand poids, les trajectoires en blanc ont un poids presque nul."}
+cols=ws1[,nYear]/max(ws1[,nYear])
+matplot(t(Xs1),type="n",lwd=cols,lty=1,
+        xlab="Année",ylab="Masse",
+        main="Trajectoires particulaires\n Cas sans rééchantillonnage")
+rect(par("usr")[1],par("usr")[3],
+     par("usr")[2],par("usr")[4],col="lightgray")
+matplot(t(Xs1)[,order(cols,decreasing = T)],add =T,
+        type="l",lty=1,col=gray(1-cols[order(cols,decreasing = T)]))
+```
+<!-- \caption{Représentations des trajectoires particulaires associées au premier filtre. L'épaisseur représente le poids relatif de chaque trajectoire.} -->
