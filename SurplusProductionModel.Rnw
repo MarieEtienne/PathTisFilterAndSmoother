@@ -15,23 +15,23 @@
 \begin{document}
 \maketitle
 \tableofcontents
-L'inférence pour ce type de modèle est classiquement menée dans un cadre bayésien dans un logiciel type BUGS ou JAGS. Ce type de logiciel demande une intialisation cohérente des paramètres, ce qui peut être compliqué. Les algorithmes particulaires, peuvent permettre de construire cette initialisation.
-
-Plus généralement, si on souhaite faire de l'estimation fréquentiste, les méthodes particulaires permettent de mettre en oeuvre un algorithme type Monte Carlo EM.
-
 \section{Présentation de la problématique} 
 \subsection{Formalisme général}
-On note $n$ le nombre total d'observations, $\Ybf= Y_{0:n}=(Y_0, \ldots, Y_n)$ les observations (les indices d'abondance) et $\Xbf=X_{0:n}$ les variables non observées (la biomasse réelle). De plus, on possède l'historique des captures $C_1,\dots C_n$, supposées observées sans erreur.
-
-Un modèle classique de dynamique de population avec prélèvement s'écrit
+On se place dans le cadre d'un modèle à espace d'états.\\
+On note $n$ le nombre total d'observations, $\Ybf= Y_{0:n}=(Y_0, \ldots, Y_n)$ les observations et $\Xbf=X_{0:n}$ les variables non observées.\\ 
+\\
+Dans ce travail, on se consacre à un modèle classique  de dynamique de populations avec prélèvement s'écrit
 \begin{align}
 X_{i+1} &= \left( X_i + r X_i\left(1- \frac{X_i}{K}\right) - C_i \right) \exp(\varepsilon_{i+1}), \quad \varepsilon_i\overset{i.i.d}{\sim}\mathcal{N}\left(-\frac{\sigma^2}{2}, \sigma^2\right)\\
 Y_i\vert X_i &= q X_i \exp(\nu_{i}), \quad \nu_i\overset{i.i.d}{\sim}\mathcal{N}\left(-\frac{\sigma^2}{2}, \sigma^2\right)
 \end{align}
-
-Pour éviter des problèmes d'identifiabilité, la variance de l'erreur d'observation et celle de l'innovation du processus dynamique sont supposées égales.
-
+Les observations $\Ybf$ sont des indices d'abondance, la variable non observée $\Xbf$ est la biomasse réelle. De plus, on possède l'historique des captures $C_1,\dots C_n$, supposées observées sans erreur.\\
 On note $g_{\theta}(X_i,.)$ la loi de $Y_i$ conditionnelement à $X_i$, on note $m_{\theta}(X_{i}, .)$ le noyau de  transition de $X_i$ vers $X_{i+1}$ et $\nu_{\theta}()$, la loi initiale de $X_0$.
+L'inférence pour ce type de modèle est classiquement menée dans un cadre bayésien dans un logiciel type BUGS ou JAGS. Ce type de logiciel demande une intialisation cohérente des paramètres, ce qui peut être compliqué. Les algorithmes particulaires, peuvent permettre de construire cette initialisation.
+
+Plus généralement, si on souhaite faire de l'estimation fréquentiste, les méthodes particulaires permettent de mettre en oeuvre un algorithme type Monte Carlo EM.
+
+
 \subsection{Loi de filtrage}
 
 $\Xbf$ est un processus Markovien non linéaire observé indirectement au travers de $\Ybf$. On appelle loi de lissage la loi de $X_{k}\vert Y_{1:k}$. Supposons  les paramètres du modèle connus, la loi de filtrage est différente de la loi de $X_k$ puisque les $Y$ apportent de l'information sur l'état du processus $\Xbf$, autrement dit la connaissance de l'ensemble des indices d'abondance jusqu'à l'année $k$ donne une information sur l'état réel du stock à l'année $k$.
@@ -139,7 +139,7 @@ m0s <- (-(1+r)+sqrtD)/(-2*r/K)
 bounds <- cbind(m0s,M0s)
 @
 La figure \ref{fig:obs} représente les indices d'abondance, les captures, la biomasse réelle non observée, ainsi que les frontières possibles pour celle ci au vu du modèle dynamique.
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<plotmodel,echo=FALSE,fig.height=5,fig.width=6>>=
 par(mfrow=c(1,1))
@@ -344,7 +344,7 @@ density(Xs1[,k],weights = ws1[,k])
 Sur la figure \ref{fig:first:dens}, on peut voir que peu de points semblent contribuer à l'estimation de la densité. 
 Cette intuition est confirmée sur la figure \ref{fig:first:ws} représentant l'évolution des poids de chaque particule avec le temps. 
 La grande majorité des poids est presque nulle, et seules 3 particules semblent avoir un poids conséquent pour l'estimation de la loi de filtrage. 
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<first_dens_filt,echo=F,fig.height=5,fig.width=6>>=
 k=nYear-5#Indice à représenter
@@ -358,7 +358,7 @@ points(Xs1[,k],rep(0,G) ,col="green",
 \caption{Estimation par méthode à noyau de la distribution de filtrage à partir des couples parictules/poids obtenus avec le premier algorithme. Chaque point sur l'axe $y=0$ représente la position d'une particule. La taille du point est relative à son poids. La plupart des poids sont très proches de 0.}
 \label{fig:first:dens}
 \end{figure}
-\begin{figure}
+\begin{figure}[p]
 <<first_ws,echo=FALSE,fig.height=5,fig.width=6>>=
 matplot(t(ws1),type="b",pch=20,xlab="Indice k",ylab="Poids",
        main="Evolution des poids de filtrage\n Cas sans resampling",
@@ -429,7 +429,7 @@ for(year in 2:nYear){
 @
 \noindent Comme précédemment, on peut regarder l'estimation à densité obtenu à partir de ce filtre, et la contribution relative de chaque particule à cette estimation. Un exemple est montré sur la figure \ref{fig:sec:dens}. La répartition des poids le long de l'algorithme est représentée sur la figure \ref{fig:sec:ws}. Les poids sont bien plus uniformément répartis.\\
 Sur la figure \ref{fig:sec:parts} est représentée la dynamique des particules simulées (et de leurs poids) 
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<sec_dens,echo=F,fig.height=5,fig.width=6>>=
 plot(density(Xs2[,k],weights = ws2[,k]),
@@ -442,7 +442,7 @@ points(Xs2[,k],rep(0,G) ,col="green",
 \caption{Estimation par méthode à noyau de la distribution de filtrage à partir des couples parictules/poids obtenus avec le deuxième algorithme, introduisant une phase de rééchantillonngae. Chaque point sur l'axe $y=0$ représente la position d'une particule. Cette fois ci les poids sont bien plus uniformément répartis, comme montré sur la figure \ref{fig:sec:ws}}
 \label{fig:sec:dens}
 \end{figure}
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<sec_ws,echo=F,fig.height=5,fig.width=6>>=
 matplot(t(ws2),type="b",pch=20,xlab="Indice k",ylab="Poids",
@@ -451,7 +451,7 @@ matplot(t(ws2),type="b",pch=20,xlab="Indice k",ylab="Poids",
 \caption{Evolution des poids de filtrage pour le second algorithme, incluant une phase de rééchantillonnage. Les poids sont à peu près uniformément répartis.}
 \label{fig:sec:ws}
 \end{figure}
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<sec_filt_plot,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide">>=
 plot(1:nYear,biomass, ylim=range(c(range(biomass),range(bounds))),
@@ -487,7 +487,7 @@ Le nombre de particules ne donnant pas de descendants sur 2 générations est en
 Ainsi, on voit que 13 particules seulement générées pour $k=28$ ont un descendant à $k=n=30$ (figure \ref{fig:sec:gen}).
 Ce sont ces 13 particules qui permettront l'approche de la loi de lissage pour $k=28$. Ce nombre de particules ayant des descendants décroit rapidement quand on remonte dans le temps.
 Ainsi, pour $k$ petit, on se retrouvera vite avec 1 seule particule pour approcher la loi de lissage.
-\begin{figure}
+\begin{figure}[p]
 <<traj_first,echo=F,fig.height=5,fig.width=6>>=
 cols=ws1[,nYear]/max(ws1[,nYear])
 matplot(t(Xs1),type="l",lwd=cols,lty=1,
@@ -501,7 +501,7 @@ matplot(t(Xs1)[,order(cols)],add =T,
 \caption{Représentation des trajectoires de particules pour le filtre sans rééchantillonnage. La couleur correspond au poids relatif de chaque trajectoire. Quand la trajectoire est blanche, son poids relatif est nul. Ici, une seule trajectoire contribuerait au calcul des lois de lissage.}
 \label{fig:first:part:traj}
 \end{figure}
-\begin{figure}
+\begin{figure}[p]
 \centering
 <<geneal,echo=F,fig.width=6,fig.height=6>>=
 par(mfrow=c(4,1),mar=c(1,1,1,1))
