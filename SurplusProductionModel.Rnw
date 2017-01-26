@@ -10,7 +10,7 @@
 \newcommand{\Xbf}{\boldsymbol{X}}
 \newcommand{\Ybf}{\boldsymbol{Y}}
 \title{Mise en oeuvre du filtrage et lissage par méthodes particulaires sur un modèle de production de biomasse}
-\author{MP Etienne}
+\author{MP Etienne et P. Gloaguen}
 \date{30 Janvier 2017}
 \begin{document}
 \maketitle
@@ -34,7 +34,7 @@ Plus généralement, si on souhaite faire de l'estimation fréquentiste, les mé
 
 \subsection{Loi de filtrage}
 
-$\Xbf$ est un processus Markovien non linéaire observé indirectement au travers de $\Ybf$. On appelle loi de lissage la loi de $X_{k}\vert Y_{1:k}$. Supposons  les paramètres du modèle connus, la loi de filtrage est différente de la loi de $X_k$ puisque les $Y$ apportent de l'information sur l'état du processus $\Xbf$, autrement dit la connaissance de l'ensemble des indices d'abondance jusqu'à l'année $k$ donne une information sur l'état réel du stock à l'année $k$.
+$\Xbf$ est un processus Markovien non linéaire observé indirectement au travers de $\Ybf$. On appelle loi de filtrage la loi de $X_{0:k}\vert Y_{0:k}$. Supposons  les paramètres du modèle connus, la loi de filtrage est différente de la loi de $X_k$ puisque les $Y$ apportent de l'information sur l'état du processus $\Xbf$, autrement dit la connaissance de l'ensemble des indices d'abondance jusqu'à l'année $k$ donne une information sur l'état réel du stock à l'année $k$.
 
 Dans des cas très particulier (modèle linéaire Gaussien), on peut obtenir une forme explicite de la loi de filtrage (c'est le filtre de Kalman) mais ça n'est en général pas le cas. L'idée des  méthodes de filtrage particulaires est d'approcher par un échantillon de particules issues de cette loi.
 La loi continue de $X_k$ va donc être approchée par une loi discrète, à valeurs dans un ensemble de particules $\xi_k^1,\dots,\xi_k^N$, associé à un ensemble de poids $\omega_k^1,\dots,\omega_k^N$ (avec la contrainte naturelle $\sum_{i=1}^N \omega_k^i =1$). 
@@ -162,7 +162,7 @@ matplot(bounds,lty=2,col="darkgrey",add=T,type="l")
 \caption{Tracé des indices d'abondance et des captures. La biomasse réelle, non observée est tracée en noir. Les délimitations grises donne les frontières des possibles pour la biomasse si celle ci suit le modèle dynamique proposé.}
 \label{fig:obs}
 \end{figure}
-\subsection{Codage du modèle}
+\subsection{Implémentation du modèle}
 Commençons par coder les fonctions spécifiques du modèle, nécessaires au calcul des poids:
 <<fonction_mg>>=
 mtheta<- function(x_old,x_new, capt_old,theta){
@@ -178,7 +178,7 @@ g<-function(x,y,theta){
 }
 @
 
-\subsection{Codage des lois de propositions}
+\subsection{Implémentation des lois de propositions}
 Il s'agit ensuite de définir une loi de proposition.\\
 Ce choix est essentiel, et s'il n'a pas d'influence en théorie, il aura une grande importance en pratique.
 De manière générale, il est souvent préférable que la loi de proposition soit flexible (donc explore bien l'espace des possibles) et dépende des observations.
@@ -193,7 +193,7 @@ On peut vérifier que la condition \eqref{eq:capt:cond} est vérifiée si et seu
 \text{Et, }~~& m_k:= -K\frac{-(1+r)+\sqrt{\Delta}}{2r} < \xi_k^i<M_k : =-K\frac{-(1+r)-\sqrt{\Delta}}{2r}\label{eq:def:bounds}
 \end{align}
 
-\subsubsection{Codage des lois initales}
+\subsubsection{Implémentation des lois initales}
 Ainsi, pour $k=0$, un choix possible de génération des particules est celui d'une loi Gaussienne tronquée, dépendant des observations $Y_0$ et $C_0$:
 \begin{align}
 \log \xi_0^i&\overset{i.i.d}{\sim} f_0\\
@@ -248,7 +248,7 @@ df0 <- function(x0, theta,Y0=NA,C0=NA){
 }
 @
 
-\subsubsection{Codage des lois de proposition}
+\subsubsection{Implémentation des lois de proposition}
 Il reste désormais à choisir une loi de proposition pour définir une particule $\xi_{k+1}^i$ à partir d'un parent $\xi_k^i$.
 Il n'est pas nécessairement conseillé de prendre comme noyau de transition celui défini par le modèle. En effet, en pratique, le vrai jeu de paramètres n'est jamais connu. Pour un jeu de paramètres supposé, utiliser le noyau de transition du modèle peut alors être trop contraignant. Ainsi, on préfèrera ici une marche aléatoire autour des particules précédemment simulées, pondérée par l'observation $Y_{k+1}$\footnote{C'est exactement ici l'idée du filtre de Kalman}. Par exemple, si on considère une marche aléatoire Gaussienne sur le logarithme de la particule, et le processus d'observation, on a
 \begin{align}
