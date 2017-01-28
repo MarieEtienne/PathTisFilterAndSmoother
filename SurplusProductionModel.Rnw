@@ -521,4 +521,85 @@ Ainsi, pour $k=28$, la loi de lissage s'approchera grâce à 13 particules, puis
 Pour $k\leq 7$ la loi de lissage ne s'approchera que grâce à une particule!}
 \label{fig:sec:gen}
 \end{figure}
+\subsection{Approche par simulation "backward"}
+Dans cette approche, on souhaite obtenir l'approximation d'une espérance de type: 
+\begin{equation}
+\mathbb{E}[f(X_{k:l})\vert Y_{0:n}]\label{eq:smooth:exp}.
+\end{equation}
+Pour ce faire,  on effectura $N$ simulations de trajectoires possible, notées $\{\xi_{0:n}^i\}_{i=1,\dots,N}$ et on approchera \eqref{eq:smooth:exp} par 
+\begin{equation}
+\frac{1}{N}\sum_{i=1}^{N} f\left(\xi_{0:n}^i(k:p)\right)
+\end{equation}
+L'idée de l'approche par simulation backward est de réutiliser l'ensemble des couples poids particules simulées lors du filtrage afin de simuler des trajectoires possibles.\\
+La procédure est intuitive, pour un point d'arrivée $(\xi_n^i,\omega_n^i)$ correspondant à la particule $i$, on simule son géniteur en tirant selon une multinomiale de poids
+\begin{equation}
+\Lambda_{n-1}^{j,i} = \frac{\omega_{n-1}^j q(\xi_{n-1}^j,\xi_{n}^i )}{\sum_{\ell=1}^N\omega_{n-1}^\ell q(\xi_{n-1}^\ell,\xi_{n}^i)}
+\label{eq:Lambdas}
+\end{equation}
+Aisni, le poids de chaque ancêtre est un compromis entre son poids de filtrage et la vraisemblance qu'il soit l'ancêtre du candidat considéré.\\ 
+On répète cette procédure itérativement afin d'obtenir une trajectoire.\\
+La fonction suivante permet la simulation
+<<simbackward>>=
+rbackward <- function(Xs,ws){
+  n <- ncol(Xs)
+  N <- length(ws[,n])
+  traj <- rep(NA,n)
+  inds <- rep(NA,n)
+  inds[n] <- sample(1:N,size=1,prob = ws[,n])#Indice initial
+  traj[n] <- Xs[inds[n],n]#Particule initiale
+  for(i in (n-1):1){
+    ms <- mtheta(Xs[,i],traj[i+1],
+                 capt_old = capt[i],theta = theta)#Calcul des densités
+    #de transition
+    Lambdas = ws[,i]*ms/sum(ws[,i]*ms)#Calcul des poids
+    inds[i] <- sample(1:N,size=1,prob = Lambdas)
+    traj[i] <- Xs[inds[i],i]
+  }
+  c(list(traj=traj,inds=inds))
+}
+@
+Les figures \ref{fig:back:sim:1traj} et \ref{fig:back:sim:alltraj} montre le mécanisme de simulation sur une trajectoire, et la simulations de 30 trajectoires.
+\begin{figure}[p]
+\centering
+<<simu_Ntraj,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide">>=
+Xb <- replicate(1,rbackward(Xs2,ws2)$traj)
+par(mfrow=c(3,1),mar=c(1,1,1,1))
+foo <- function(lag,Inds,Xs){
+  plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
+     type="p",pch=20,xlim=c(1,nYear),col="lightgray",
+     ylim=range(c(0,range(biomass),range(bounds))))
+  sapply(1:lag,function(i){
+    points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
+  })
+  matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
+        add=T,lty=1,type="b",pch=20)
+}
+foo(1,Xb,Xs2)
+foo(2,Xb,Xs2)
+foo(29,Xb,Xs2)
+@
+\caption{Simulation d'une trajectoire avec l'algorithme de simulation backward. Les ancêtres sont calculés à l'aide des poids de l'équation \eqref{eq:Lambdas}}
+\label{fig:back:sim:1traj}
+\end{figure}
+\begin{figure}
+\centering
+<<simu_alltraj,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide">>=
+Xb <- replicate(G,rbackward(Xs2,ws2)$traj)
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+foo <- function(lag,Inds,Xs){
+  plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
+     type="p",pch=20,xlim=c(1,nYear),col="lightgray",
+     ylim=range(c(0,range(biomass),range(bounds))))
+  sapply(1:lag,function(i){
+    points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
+  })
+  matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
+        add=T,lty=1,type="b",pch=20)
+}
+foo(29,Xb,Xs2)
+lines(biomass,lwd=3,col="red")
+@
+\caption{Smulation de 30 trajectoires grâce à l'algorithme de backward simulation. La vraie trajectoire des biomasses est en rouge.}
+\label{fig:back:sim:alltraj}
+\end{figure}
 \end{document}
