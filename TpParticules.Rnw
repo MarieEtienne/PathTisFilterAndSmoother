@@ -33,6 +33,9 @@
 \newcommand{\refer}[1]{\textcolor{blue}{\sl \cite{#1}}}
 \newcommand{\Refer}[1]{\textcolor{blue}{\sl #1}}
 
+\newcommand{\orange}[1]{\textcolor{orange}{#1}}
+\newcommand{\rouge}[1]{\textcolor{red}{#1}}
+\newcommand{\bleu}[1]{\textcolor{blue}{#1}}
 
 \graphicspath{{figure/}}
 
@@ -81,10 +84,18 @@ Y_i\vert X_i &= q X_i \exp(\nu_{i}), \quad \nu_i\overset{i.i.d}{\sim}\mathcal{N}
  
 % %--------------------------------------------------------------------
 % %--------------------------------------------------------------------
+
+
+
+
+
+
+
+
 \begin{frame}
 \paragraph{Notations :}
 \begin{itemize}
-\item  $n$ le nombre total d'observations,
+\item  $n+1$ le nombre total d'observations,
 \item $\Ybf= Y_{0:n}=(Y_0, \ldots, Y_n)$ les observations, 
 \item $\Xbf=X_{0:n}$ les variables non observées,
 \item $g_{\theta}(X_i,.)$ la loi de $Y_i$ conditionnelement à $X_i$
@@ -92,14 +103,76 @@ Y_i\vert X_i &= q X_i \exp(\nu_{i}), \quad \nu_i\overset{i.i.d}{\sim}\mathcal{N}
 \item $\nu_{\theta}()$, la loi initiale de $X_0$
 \end{itemize}
 
-% \begin{figure}
-% \includegraphics[scale=0.5]{Dag3}
-% \end{figure}
+\begin{figure}
+\includegraphics[scale=0.5]{Dag3}
+\end{figure}
 \end{frame}
 
- 
-\subsection{Loi de filtrage}
 
+\subsection{Simulation du modèle}
+\begin{frame}[fragile]
+  \frametitle{Simulation du modèle de biomasse}
+
+
+<<Parametres>>=
+nYear <- 30
+biomass <- rep(NA, nYear);capt <- rep(NA, nYear)
+K <- 300 ## Capacité d'accueil
+r <- 1.02 ## Taux de recrutement
+q <- 0.5 #Capturabilité
+@
+
+
+
+\pause
+<<modelsimulation, fig.show='hide', echo=FALSE>>=
+# Population Dynamic model simulation ----------------------------------
+set.seed(15)
+sigmaBiomass <- 0.3
+biomass[1] <- rnorm(1, mean=0.9*K, sd=K/10)
+capt[1] <- runif(1,0.1,0.5)*biomass[1]
+for( year in 2:nYear){
+ Bk = biomass[year-1]
+ capt[year-1] <- runif(1,0.1,0.5)*Bk
+ #Les captures sont une fraction aléatoire de la biomasse
+ innov <- rnorm(1, mean=-sigmaBiomass^2/2,sd=sigmaBiomass)
+ biomass[year] <- (Bk+r*Bk*(1- Bk/K)-capt[year-1])*exp(innov)
+ capt[year] <- runif(1,0.1,0.5)*biomass[year]
+}
+obs_error <- rnorm(nYear, mean=-sigmaBiomass^2/2, sd=sigmaBiomass)
+abundanceIndex <- q * biomass*exp(obs_error)
+#Calcul de la fenêtre des possible pour les Xs
+sqrtD <- sqrt((1+r)^2-4*capt*r/K)
+M0s <- (-(1+r)-sqrtD)/(-2*r/K)
+m0s <- (-(1+r)+sqrtD)/(-2*r/K)
+bounds <- cbind(m0s,M0s)
+@
+
+<<plotmodel,echo=FALSE,fig.show='hide',fig.height=5,fig.width=6>>=
+par(mfrow=c(1,1))
+plot(1:nYear,biomass, ylim=range(c(0,range(biomass),range(bounds))),
+    main='Evolution de la biomasse',xlab="Année",type="b",pch=20,
+    ylab="Masse",bty="n")
+lines(1:(nYear),capt,type="b",col="red",pch=20)
+legend("topright",pch=20,col=c("black","red"),
+      legend = c("Biomasse","Captures"),
+      bty="n",horiz = T)
+lines(1:nYear, abundanceIndex, type='b',col="blue",pch=18,
+     ylim=range(c(0,range(abundanceIndex))))
+axis(side=4,at=pretty(range(abundanceIndex),n = 2),col = "blue",
+    col.ticks = "blue",labels=F ,lwd.ticks=0)
+mtext(side=4,text = "Indice d'abondance",col = "blue",at=150,line=1)
+mtext(side=4,text = pretty(range(abundanceIndex),n=2),col = "blue",
+     at=pretty(range(abundanceIndex),n=2))
+matplot(bounds,lty=2,col="darkgrey",add=T,type="l")
+@
+\begin{center}
+\includegraphics[scale=0.4]{plotmodel-1}
+\end{center}
+\end{frame}
+
+ \section{Filtrage et Méthodes particulaires}
+ 
 % %--------------------------------------------------------------------
 % %--------------------------------------------------------------------
 \begin{frame}
@@ -107,7 +180,8 @@ Y_i\vert X_i &= q X_i \exp(\nu_{i}), \quad \nu_i\overset{i.i.d}{\sim}\mathcal{N}
 $\Xbf$ : processus Markovien non linéaire observé indirectement grâce à $\Ybf$. 
 \bigskip 
 
-\paragraph{Définition} La loi de filtrage est la loi de $X_{0:k}\vert Y_{0:k}$, notée $\phi_{0:k\vert 0:k}(.)$
+
+\paragraph{Définition} La loi de filtrage est la loi de $X_{k}\vert Y_{0:k}$, notée $\phi_{k\vert 0:k}(.)$
 \bigskip 
 
 \emphase{Remarque :}
@@ -116,17 +190,17 @@ En général, elle n'a pas de forme analytique (sauf cas gaussien : Filtre de Ka
 \pause
 \begin{center}
 \emphase{Recours à des méthodes de simulation}\\
-\pause \medskip
-\emphase{Méthodes particulaire}\\
+ \medskip
+\emphase{Méthodes particulaires}\\
 \end{center}
 \end{frame}
 
-% %--------------------------------------------------------------------
-% %--------------------------------------------------------------------
-
-\begin{frame}
+%--------------------------------------------------------------------
+%--------------------------------------------------------------------
+\subsection{Importance sampling}
+\begin{frame}[fragile]
 \frametitle{Méthodes particulaires}
-\emphase{Idées des méthodes particulaires : }Approcher la loi de $\phi_{k\vert 0:k}(.)$ par un échantillon pondéré tiré dans cette loi : $\xi_k^1,\dots,\xi_k^N$, associé à un ensemble de poids $\omega_k^1,\dots,\omega_k^N$ (avec la contrainte naturelle $\sum_{i=1}^N \omega_k^i =1$). \bigskip
+\emphase{Idées des méthodes particulaires : }Approcher la loi de $\phi_{k\vert 0:k}(.)$ par un échantillon pondéré tiré dans cette loi : $\xi_k^1,\dots,\xi_k^G$, associé à un ensemble de poids $\omega_k^1,\dots,\omega_k^G$ (avec la contrainte naturelle $\sum_{i=1}^G \omega_k^i =1$). \bigskip
 
 \pause
 \emphase{Un exemple simple : échantillonnage d'importance :} On connaît la loi cible $g$ à une constante près.
@@ -148,13 +222,13 @@ lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
 @
 
 <<IS3, echo=FALSE,fig.show='hide', fig.echo=FALSE>>=
-N <- 10
-N10 <- N
-part <- rnorm(N, mean=a/b, sd=2*sqrt(a/b^2))
+G <- 10
+G10 <- G
+part <- rnorm(G, mean=a/b, sd=2*sqrt(a/b^2))
 part10 <- part
 plot(abc, dgamma(abc, shape = a, rate = b), 'l', xlim=c(-5, 10), xlab='', ylab='Density')
 lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
-points(part, y=rep(0,N), pch=19, cex=0.8, col=2)
+points(part, y=rep(0,G), pch=19, cex=0.8, col=2)
 @
 
 
@@ -164,26 +238,26 @@ weight <- weight/sum(weight)
 weight10 <- weight
 plot(abc, dgamma(abc, shape = a, rate = b), 'l', xlim=c(-5, 10), xlab='', ylab='Density')
 lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
-points(part, y=rep(0,N), pch=19, cex=0.8, col=2)
-points(part, y=rep(0,N), pch=19, cex=4*weight, col=1)
+points(part, y=rep(0,G), pch=19, cex=0.8, col=2)
+points(part, y=rep(0,G), pch=19, cex=4*weight, col=1)
 @
 <<IS5, echo=FALSE,fig.show='hide', fig.echo=FALSE>>=
 plot(abc, dgamma(abc, shape = a, rate = b), 'l', xlim=c(-5, 10), xlab='', ylab='Density')
 lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
-points(part, y=rep(0,N), pch=19, cex=0.8, col=2)
-points(part, y=rep(0,N), pch=19, cex=4*weight, col=1)
+points(part, y=rep(0,G), pch=19, cex=0.8, col=2)
+points(part, y=rep(0,G), pch=19, cex=4*weight, col=1)
 lines(density(part, weights = weight), col=3)
 @
 
 <<IS6, echo=FALSE,fig.show='hide', fig.echo=FALSE>>=
-N <- 5000
-part <- rnorm(N, mean=a/b, sd=2*sqrt(a/b^2))
+G <- 5000
+part <- rnorm(G, mean=a/b, sd=2*sqrt(a/b^2))
 plot(abc, dgamma(abc, shape = a, rate = b), 'l', xlim=c(-5, 10), xlab='', ylab='Density')
 lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
-points(part, y=rep(0,N), pch=19, cex=0.8, col=2)
+points(part, y=rep(0,G), pch=19, cex=0.8, col=2)
 weight <- dgamma(part, shape = a, rate = b)/dnorm(part, mean=a/b, sd=2*sqrt(a/b^2))
 weight <- weight/sum(weight)
-points(part, y=rep(0,N), pch=19, cex=weight, col=1)
+points(part, y=rep(0,G), pch=19, cex=weight, col=1)
 lines(density(part, weights = weight), col=3)
 @
 
@@ -191,16 +265,16 @@ lines(density(part, weights = weight), col=3)
 plot(abc, dgamma(abc, shape = a, rate = b), 'l', xlim=c(-5, 10), xlab='', ylab='Density')
 m <- max( dgamma(abc, shape = a, rate = b))
 lines(abc, dnorm(abc, mean=a/b, sd=2*sqrt(a/b^2)), col=2)
-points(part10, y=rep(0,N10), pch=19, cex=0.8, col=2)
+points(part10, y=rep(0,G10), pch=19, cex=0.8, col=2)
 weight <- dgamma(part, shape = a, rate = b)/dnorm(part, mean=a/b, sd=2*sqrt(a/b^2))
 weight <- weight/sum(weight)
-points(part10, y=rep(0,N10), pch=19, cex=4*weight, col=1)
+points(part10, y=rep(0,G10), pch=19, cex=4*weight, col=1)
 lines(density(part10, weights = weight10), col=3)
-partSelected <- sample(1:N10, size = N10, replace=T, prob=weight10)
+partSelected <- sample(1:G10, size = G10, replace=T, prob=weight10)
 p <- unique(part10[partSelected])
 invisible(lapply(p,function(p_){
   np <- sum(part10[partSelected]==p_)
-  points(x=rep(p_, np), y=seq(0, m/2, length.out=N10)[1:np], pch=18, col=3)
+  points(x=rep(p_, np), y=seq(0, m/2, length.out=G10)[1:np], pch=18, col=3)
 }))
 @
 
@@ -218,22 +292,22 @@ invisible(lapply(p,function(p_){
  \only<6>{
     \small{
       \begin{algorithm}[H]
-        \For{ i in 1:N}{
-          Draw $Z^i\sim g(.)$\;
-          Compute weight $w^i=f(Z^i)/g(Z^i)$\;}
-        Compute $w_+=\sum_{i=1}^G w^i$\;
-        Define normalized weight $\tilde{w}^i=w^i/w_+$\;
+        \For{ i in 1:G}{
+          Tirer $Z^i\sim f(.)$\;
+          Calculer $\omega^i=g(Z^i)/f(Z^i)$\;}
+        Calculer $\omega_+=\sum_{i=1}^G \omega^i$\;
+        Définir $\tilde{\omega}^i=\omega^i/\omega_+$\;
       \end{algorithm}
       }}
       \only<7>{
     \small{
       \begin{algorithm}[H]
-        \For{ i in 1:N}{
-          Draw $Z^i\sim g(.)$\;
-          Compute weight $w^i=f(Z^i)/g(Z^i)$\;}
-        Compute $w_+=\sum_{i=1}^G w^i$\;
-        Define normalized weight $\tilde{w}^i=w^i/w_+$\;
-        Resample according to $\tilde{w}^i$\;
+        \For{ i in 1:G}{
+          Tirer $Z^i\sim f(.)$\;
+           Calculer $\omega^i=g(Z^i)/f(Z^i)$\;}
+        Calculer $\omega_+=\sum_{i=1}^G \omega^i$\;
+        Définir $\tilde{\omega}^i=\omega^i/\omega_+$\;
+        Rééchantilloner selon $\tilde{\omega}^i$\;
       \end{algorithm}
       }}
  \end{column}
@@ -241,17 +315,415 @@ invisible(lapply(p,function(p_){
 \end{frame}
 % %--------------------------------------------------------------------
 % %--------------------------------------------------------------------
- 
-\begin{frame}
-\frametitle{Méthodes particulaires}
-\emphase{Idées des méthodes particulaires : }Approcher la loi de $\phi_{k\vert 0:k}(.)$ par un échantillon pondéré tiré dans cette loi : $\xi_k^1,\dots,\xi_k^N$, associé à un ensemble de poids $\omega_k^1,\dots,\omega_k^N$ (avec la contrainte naturelle $\sum_{i=1}^N \omega_k^i =1$). \bigskip
+  \subsection{Importance sampling séquentiel}
+%'   
+\begin{frame}[fragile]
+\frametitle{Méthodes particulaires séquentielles}
+\emphase{Idée: }Approcher la loi de $\phi_{k\vert 0:k}(.)$ par un échantillon pondéré tiré dans cette loi : $\xi_k^1,\dots,\xi_k^G$, associé à un ensemble de poids $\omega_k^1,\dots,\omega_k^G$ (avec la contrainte naturelle $\sum_{i=1}^N \omega_k^i =1$). \bigskip
 
 \emphase{Méthode séquentielle :}  Pour échantillonner selon $\phi_{k\vert0:k}$, 
 \begin{itemize}
-\item Générer un échantillon $\xi_0^1,\dots,\xi_0^N$ selon $\phi_{0:0}$
-\item Propager cet échantillon puis le pondérer pour obtenir un échantillon $\xi_1^1,\dots,\xi_1^N$
+\item Générer un échantillon $\xi_0^1,\dots,\xi_0^G$ selon $\phi_{0:0}$
+\item Propager cet échantillon puis le pondérer pour obtenir un échantillon $(\xi_1^1,\omega_1^1) , \dots,(\xi_1^G,\omega_1^G)$
 \item ...
 \end{itemize}
+\end{frame}
+
+%' % %--------------------------------------------------------------------
+%' % %--------------------------------------------------------------------
+\begin{frame}[fragile]
+\frametitle{Méthodes particulaires séquentielles - calcul des poids}
+\emphase{Notations : }$R(x,x')$ est la densité utilisée pour propager les particules.
+
+
+\emphase{Itération $k$ :} On dispose d'un jeu de particules  $\xi_1^k,\dots,\xi_k^G$ associé aux poids $\omega_k^1,\dots,\omega_k^G$
+\onslide<2->{
+  \only<2>{
+    \begin{itemize}
+    \item Pour chaque i, proposer $\xi_{k+1}^i$, selon $R(X_k^i,.)$ 
+    \item Calcul du poids non normalisé $\omega_{k+1}^{i}$
+    \pause
+    {\small
+    \begin{align*}
+    \pi(X_{k+1}\vert X_k, Y_{1:k+1}) = & \frac{\pi(X_{k+1}, X_k, Y_{1:k+1})}{\pi( X_k, Y_{1:k+1})}\\
+    &\propto {\orange{\pi(X_{k}\vert Y_{1:k})}  m( X_k, X_{k+1}) g(X_{k+1}, Y_{k+1})}\\
+    &\propto \rouge{R(X_k, X_{k+1})} \orange{\pi(X_{k}\vert Y_{1:k})}  \bleu{\frac{m( X_k, X_{k+1}) g(X_{k+1}, Y_{k+1})}{R(X_k, X_{k+1})}}\\
+    \end{align*}
+    }
+    \end{itemize}
+    }
+  \only<3->{
+    \begin{algorithm}[H]
+    \For{ i in 1:G}{
+    Simuler $\xi_0^i \sim r_0$\;
+    Calculer $\omega_0^i=\nu(\xi_0^i) g(\xi_0^i, Y_0) /r_0(\xi_0^i)$\;
+    }
+    \For{ k in 1:n}{
+    \For{ i in 1:G}{
+    Simuler $\xi_k^i \sim \rouge{R_k(\xi_{k-1}^i,.)}$\;
+    Calculer $\omega_k^i= \orange{\omega_{k-1}^i} \bleu{\frac{m_{\theta}(\xi_{k-1}^i, \xi_k^i) g(\xi_k^i,Y_k)}{ R_k(\xi_{k-1}^i,\xi_{k}^i) }}$\;
+    }
+    Calculer $\omega_k^i=\omega_k^i/\omega_{k+}$
+    }
+    \caption{Filtre Particulaire - 1}
+    \end{algorithm}
+    }
+  }
+\end{frame}
+
+
+\subsection{Un premier algorithme de filtrage}
+
+\begin{frame}[fragile]
+\frametitle{A vous de jouer}
+\begin{itemize}
+\item Implémenter le modèle
+\item Implémenter le filtre
+\end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]
+\frametitle{Le modèle}
+ \pause
+<<fonction_mg>>=
+mtheta<- function(x_old,x_new, capt_old,theta){
+ r =theta$r; K=theta$K; sigmaBiomass = theta$sigmaBiomass;
+ mn_innov =-sigmaBiomass^2/2
+ dnorm(log(x_new),
+       mean=log(x_old+r*x_old*(1-x_old/K)- capt_old)-mn_innov,
+       sd=sigmaBiomass)
+}
+g<-function(x,y,theta){
+ q =theta$q;sigmaBiomass=theta$sigmaBiomass;mn_innov =-sigmaBiomass^2/2
+ dnorm(log(y), mean=log(q*x)-mn_innov,sd=sigmaBiomass)
+}
+@
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{La loi de proposition $R_k$}
+\pause
+
+Pour un choix malin, il faut vérifier
+\begin{equation}
+\xi_k^i+r\xi_k^i\left(1-\frac{\xi_k^i}{K}\right)>C_k
+\end{equation}
+et donc  
+
+\begin{align}
+\Delta &: = (1+r)^2-4\frac{rC_k}{K}>0,\\
+\text{Et, }~~& m_k:= -K\frac{-(1+r)+\sqrt{\Delta}}{2r} < \xi_k^i<M_k : =-K\frac{-(1+r)-\sqrt{\Delta}}{2r}\label{eq:def:bounds}
+\end{align}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{La loi de proposition $R_0$}
+\begin{align}
+\log \xi_0^i&\overset{i.i.d}{\sim} f_0\\
+\text{Avec } f_0(x)&=\left\lbrace \begin{array}{lr}
+\frac{\varphi_0(x)}{\int_{m_0}^{M_0 }\varphi_0(s)ds} & \text{si } m_0<\exp(x)<M_0\\
+0&\text{sinon}
+\end{array}\right.\label{eq:def:f0}
+\end{align}
+où $m_0$ et $M_0$ sont définis par l'équation \eqref{eq:def:bounds} et  $\varphi_0$ est la densité d'une loi Gaussienne $\mathcal{N}(\mu_0,\sigma^2_0)$ de paramètres
+\begin{align*}
+\mu_0&= \log Y_0 - \log q + \frac{\sigma^2}{2}\\
+\sigma^2_0 &= \sigma^2
+\end{align*}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{La loi de proposition $R_0$}
+<<f0>>=
+#Fonction de génération
+rf0 <- function(G, theta,Y0=NA,C0=NA){
+   #Extraction des paramètres nécessaires
+   r =theta$r; sigmaBiomass = theta$sigmaBiomass;q=theta$q;
+   mn_innov = -sigmaBiomass^2/2;#Pourrait être défini autrement
+   Delta <- (1+r)^2-4*C0*r/K
+   sqrtD <- sqrt(Delta)
+   M0 <- (-(1+r)-sqrtD)/(-2*r/K)
+   m0 <- (-(1+r)+sqrtD)/(-2*r/K)
+   X0 <- sapply(1:G,function(i){
+     ok <- F
+     while(!ok){#On simule jusqu'à tomber dans la zone
+       #acceptable au vu des captures
+       cand <- exp(rnorm(1,log(Y0)-log(q)-mn_innov,
+                         sigmaBiomass))
+       ok <- (cand < M0) & (cand>m0)
+     }
+     return(cand)
+   })
+   return(X0)
+}
+df0 <- function(x0, theta,Y0=NA,C0=NA){
+ #Extraction des paramètres nécessaires
+ r =theta$r; sigmaBiomass = theta$sigmaBiomass;q=theta$q;
+ mn_innov = -sigmaBiomass^2/2;#Pourrait être défini autrement
+ Delta <- (1+r)^2-4*C0*r/K
+ sqrtD <- sqrt(Delta)
+ M0 <- (-(1+r)-sqrtD)/(-2*r/K)
+ m0 <- (-(1+r)+sqrtD)/(-2*r/K)
+ mn_ref <- log(Y0)-log(q)-mn_innov
+ #Définition de la constante de normalisation
+ norm_cst <- (pnorm(log(M0),mn_ref,sigmaBiomass)-
+                pnorm(log(m0),mn_ref,sigmaBiomass))
+ dx <- dnorm(log(x0),mn_ref,sigmaBiomass)/norm_cst
+ return(dx)
+}
+@
+\end{frame}
+
+\begin{frame}
+\frametitle{Implémenter $R_k$}
+Théoriquement : Libre choix pour $R$, en pratique ....\\
+\pause 
+Proposition : marche aléatoire combinant l'état de biomasse passée et l'indice d'abondance courant i.e 
+{\small \begin{columns}
+\begin{column}{0.40\textwidth}
+ $$ \log\xi_{k+1}^i\vert \log\xi_k^i \sim \mathcal{N}(\log\xi_k^i,\sigma^2_{\text{RW}})$$
+\end{column}
+\begin{column}{0.50\textwidth}
+  $$\log Y_{k+1}^i \vert \xi_{k+1}^i \sim \mathcal{N}(\log q + \log \xi_{k+1}^i -\sigma^2/2,\sigma^2)$$
+\end{column}
+\end{columns}
+}
+$$\log \xi_{k+1}^i\vert \log\xi_k^i,\log Y_{k+1} \sim \mathcal{N}(\mu_p,\sigma^2{p})$$
+
+et 
+\begin{align*}
+\mu_p&= \sigma^2_p\left(\frac{\log \xi_{k}^i }{\sigma_{\text{RW}}^2} +\frac{\log Y_{k+1}^i -\log q +\sigma^2/2 }{\sigma^2}\right)\\
+\sigma^2_p &= \frac{\sigma_{\text{RW}}^2+\sigma^2}{\sigma_{\text{RW}}^2\sigma^2}
+\end{align*}
+\pause
+Ceci s'obtient grâce à la relation 
+$$
+p(\log \xi_{k+1}^i\vert \log\xi_k^i,\log Y_{k+1})\propto p(\log\xi_{k+1}^i\vert\log \xi_k^i)p(\log Y_{k+1}\vert \log \xi_{k+1})$$
+
+
+<<Propag, echo=FALSE>>=
+rPropag <- function(x_old,theta,Y_new=NA,C_new=NA){
+ sdRW = theta$sdRW; sigmaBiomass = theta$sigmaBiomass;
+ mn_innov = -sigmaBiomass^2/2; q =theta$q;r=theta$r;
+ K = theta$K;
+ sqrtD <- sqrt((1+r)^2-4*C_new*r/K)
+ M_new <- (-(1+r)-sqrtD)/(-2*r/K)
+ m_new <- (-(1+r)+sqrtD)/(-2*r/K)
+ v_gau  <- (sdRW^2*sigmaBiomass^2)/(sdRW^2+sigmaBiomass^2)
+ mn2    <- log(Y_new)-log(q)-mn_innov
+ mn_gau <- v_gau*(log(x_old)/(sdRW^2)+mn2/(sigmaBiomass^2))
+ Xnex <- sapply(mn_gau,function(mn){
+   ok <- F
+   while(!ok){
+     cand <- exp(rnorm(1,mn,sqrt(v_gau)))
+     ok <- (cand > m_new) & (cand < M_new)
+   }
+   return(cand)
+ })
+ return(Xnex)
+}
+dPropag <- function(x_new, x_old,theta,Y_new=NA,C_new=NA){
+ sdRW = theta$sdRW; sigmaBiomass = theta$sigmaBiomass;
+ mn_innov = -sigmaBiomass^2/2; q =theta$q;r=theta$r;
+ K = theta$K;
+ sqrtD <- sqrt((1+r)^2-4*C_new*r/K)
+ M_new <- (-(1+r)-sqrtD)/(-2*r/K)
+ m_new <- (-(1+r)+sqrtD)/(-2*r/K)
+ v_gau  <- (sdRW^2*sigmaBiomass^2)/(sdRW^2+sigmaBiomass^2)
+ mn2    <- log(Y_new)-log(q)-mn_innov
+ mn_gau <- v_gau*(log(x_old)/(sdRW^2)+mn2/(sigmaBiomass^2))
+ dnex <- sapply(1:length(x_new),function(i){
+   mn = mn_gau[i]
+   (dnorm(log(x_new[i]),mn,sqrt(v_gau))
+   /(pnorm(log(M_new),mn,sqrt(v_gau))-pnorm(log(m_new),mn,sqrt(v_gau))))
+   #normalized by the area of possible zone
+ })
+ return(dnex)
+}
+@
+
+
+<<first_filt, echo=FALSE>>=
+#Initialisation
+sdRW <- 10#Ecart type de la marche aleatoire
+theta=list(q=q, K=K, sigmaBiomass=sigmaBiomass,
+          r=r,sdRW=sdRW)#Paramètres pour la génération de particules
+#et calculs de poids
+G <- 20#Nombre de particules
+Xs1 <- matrix(NA, ncol=nYear, nrow=G)#Particules
+Xs1[,1] <- rf0(G=G,theta= theta,
+            Y0 = abundanceIndex[1],C0 = capt[1] )
+ws1 <- matrix(NA, ncol=nYear, nrow=G)#Poids
+ws1[,1] <- df0(x0=Xs1[,1],theta = theta,
+             Y0 = abundanceIndex[1],C0 = capt[1])
+ws1[,1] <-  ws1[,1]/sum(ws1[,1])
+for(year in 2:nYear){
+ Xs1[,year] <- rPropag(x_old = Xs1[,year-1],theta = theta,
+                       Y_new = abundanceIndex[year],
+                       C_new = capt[year])#Génération de nvelles particules
+ mth <- mtheta(x_old =Xs1[,year-1],x_new= Xs1[,year],
+               theta= theta,capt_old=capt[year-1])
+ #densité de transition du modele
+ gfact <- g(Xs1[,year], abundanceIndex[year], theta)#Dnsité d'observation
+ pfact <- dPropag(x_new = Xs1[,year],x_old= Xs1[,year-1],
+                  theta = theta, Y_new = abundanceIndex[year],
+                  C_new = capt[year])#Densité de la loi de proposition
+ ws1[,year]=ws1[,year-1]*(mth*gfact/pfact)#Actualisation des poids
+ ws1[,year] <-   ws1[,year]/sum(ws1[,year])#Normalisation des poids
+}
+@
+
+\begin{figure}[p]
+\centering
+<<first_dens_filt,echo=F,fig.height=5,fig.width=6>>=
+k=nYear-5#Indice à représenter
+plot(density(Xs1[,k],weights = ws1[,k]),
+    main=bquote(paste('Loi de filtrage de '*'X'[.(k)])),
+    xlab="Biomasse",ylab="Densité")
+abline(v=biomass[k],lty=2)
+points(Xs1[,k],rep(0,G) ,col="green",
+       cex=ws1[,k]/max(ws1[,k]),pch=20)
+@
+\label{fig:first:dens}
+\end{figure}
+ \end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Poids de filtrage}
+\begin{figure}[p]
+<<first_ws,echo=FALSE,fig.height=4,fig.width=5>>=
+matplot(t(ws1),type="b",pch=20,xlab="Indice k",ylab="Poids",
+       main="Evolution des poids de filtrage\n Cas sans resampling",
+       lty=1)
+@
+\caption{Evolution des poids de filtrage pour le premier algorithme proposé. La grande majorité des particules ont un poids associé nul, et ne contribue donc aucunement à l'estimation.}
+\label{fig:first:ws}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Taille d'échantillon effective}
+\begin{columns}
+\begin{column}{0.4\textwidth}
+{\small
+Kish's effective sample size
+$$ESS = \frac{(\sum_{i=1}^G \omega_i)^2}{\sum_{i=1}^G \omega_i^2}$$
+}
+\end{column}
+\begin{column}{0.6\textwidth}
+<<ESS_ws,echo=FALSE,fig.height=5,fig.width=6, fig.show='hide'>>=
+ESS <- apply(ws1, 2, function(d){
+  (sum(d))^2/sum(d^2)})
+plot(y=ESS, x=1:nYear,type="b",pch=20,xlab="Indice k",ylab="ESS",
+       main="Evolution de ESS\n Cas sans resampling",
+       lty=1, ylim=c(0, G))
+abline(h=G, col=2, lwd=2)
+@
+\begin{figure}[p]
+\includegraphics[scale=0.4]{ESS_ws-1}
+\caption{Evolution de l'ESS}
+\end{figure}
+\end{column}
+\end{columns}
+\end{frame}
+
+ \subsection{Filtrage avec rééchantillonnage}
+
+\begin{frame}[fragile]
+\frametitle{Filtrage avec rééchantillonnage}
+{\small
+ Pari sur les petites particules qui en veulent !
+
+    \begin{algorithm}[H]
+    \For{ i in 1:G}{
+    Simuler $\xi_0^i \sim r_0$\;
+    Calculer $w_0^i=\nu(\xi_0^i) g(\xi_0^i, Y_0) /r_0(\xi_0^i)$\;
+    }
+    \For{ k in 1:n}{
+    Tirer $I_k^i$ dans $\left\lbrace 1,\ldots, G\right\rbrace$
+    tel que $P(I_k^i=j)=\tilde{\omega}_k^j$\;
+     \For{ i in 1:G}{
+     Simuler $\xi_k^i \sim \rouge{R_k(\xi_{k-1}^{I_k^i},.)}$\;
+     Calculer $w_k^i=  \bleu{\frac{m_{\theta}(\xi_{k-1}^{I_k^i}, \xi_k^i) g(\xi_k^i,Y_k)}{ R_k(\xi_{k-1}^{I_k^i},\xi_{k}^i) }}$\;
+     }
+     Calculer $\tilde{\omega_k^i}= \omega_k^i / \omega_{k+}$\;
+     }
+    \caption{Filtre Particulaire - 2}
+    \end{algorithm}
+}
+    
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Qualité de l'échantillonnage}
+<<dec_filt_run,echo=F>>=
+Geneal <- matrix(NA, ncol=nYear, nrow=G)
+Geneal[,1] <- 1:G
+Xs2 <- matrix(NA, ncol=nYear, nrow=G)
+Xs2[,1] <- rf0(G=G,theta= theta,
+            Y0 = abundanceIndex[1],C0 = capt[1] )
+ws2 <- matrix(NA, ncol=nYear, nrow=G)
+ws2[,1] <- df0(x0=Xs2[,1],theta = theta,
+                  Y0 = abundanceIndex[1],C0 = capt[1])
+ws2[,1] <- ws2[,1]/sum(ws2[,1])
+for(year in 2:nYear){
+ inds_rspl <- sample(1:G,size=G,replace=T,
+                     prob = ws2[,year-1])#Rééchantillonnage
+ Gnew <- Geneal[inds_rspl,]
+ Gnew[,nYear] <- 1:G
+ Gnew[,year-1] <- inds_rspl
+ Geneal <- Gnew
+ Xs2[,year] <- rPropag(x_old = Xs2[inds_rspl,year-1],
+                     theta = theta,
+                     Y_new = abundanceIndex[year],
+                     C_new = capt[year])
+ mth <- mtheta(x_old =Xs2[inds_rspl,year-1],
+               x_new= Xs2[,year],
+               theta= theta,
+               capt_old=capt[year-1])
+ gfact <- g(Xs2[,year], abundanceIndex[year], theta)
+ pfact <- dPropag(x_new = Xs2[,year],x_old= Xs2[inds_rspl,year-1],
+                  theta = theta, Y_new = abundanceIndex[year],
+                  C_new = capt[year])
+ ws2[,year]=(mth*gfact/pfact)
+ ws2[,year] <-   ws2[,year]/sum(ws2[,year])
+}
+@
+%
+\begin{figure}[p]
+\centering
+<<sec_ws,echo=F,fig.height=5,fig.width=6, fig.show='hide'>>=
+matplot(t(ws2),type="b",pch=20,xlab="Indice k",ylab="Poids",
+       main="Evolution des poids de filtrage\n Cas avec resampling")
+@
+\includegraphics[scale=0.4]{sec_ws-1}
+\caption{Evolution des poids de filtrage}
+\label{fig:sec:ws}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Qualité de l'échantillonnage}
+<<ESS_wrs,echo=FALSE,fig.height=5,fig.width=6, fig.show='hide'>>=
+ESS2 <- apply(ws2, 2, function(d){
+  (sum(d))^2/sum(d^2)})
+plot(y=ESS2, x=1:nYear,type="b",pch=20,xlab="Indice k",ylab="ESS",
+       main="Evolution de ESS\n Cas avec resampling",
+       lty=1, ylim=c(0, G))
+abline(h=G, col=2, lwd=2)
+@
+
+\begin{figure}[p]
+\includegraphics[scale=0.4]{ESS_wrs-1}
+\caption{Evolution de l'ESS}
+\end{figure}
 \end{frame}
 
 % %--------------------------------------------------------------------
@@ -414,6 +886,5 @@ $$ \phi_{k\vert n} \simeq \left(\xi_{0:n}^i(k),\omega_n^i \right)_{i=1,\dots,N}$
 % \label{fig:back:sim:alltraj}
 % \end{figure}
 % \end{frame}
-
 
 \end{document}

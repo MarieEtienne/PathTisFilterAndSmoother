@@ -97,7 +97,7 @@ Si on s'intéresse à la loi de $X_{k+1}\vert X_k, Y_{k+1}$, on peut écrire
 \begin{algorithm}
 \For{ i in 1:G}{
   Simuler $X_0^i \sim r_0$\;
-  Calculer $w_0^i=\nu(X_0^i)/r_0(X_0^i)$\;
+  Calculer $w_0^i=\nu(X_0^i) g(X_0^i, Y_0)/r_0(X_0^i)$\;
 }
 \For{ k in 1:n}{
   \For{ i in 1:G}{
@@ -250,7 +250,11 @@ df0 <- function(x0, theta,Y0=NA,C0=NA){
 
 \subsubsection{Implémentation des lois de proposition}
 Il reste désormais à choisir une loi de proposition pour définir une particule $\xi_{k+1}^i$ à partir d'un parent $\xi_k^i$.
-Il n'est pas nécessairement conseillé de prendre comme noyau de transition celui défini par le modèle. En effet, en pratique, le vrai jeu de paramètres n'est jamais connu. Pour un jeu de paramètres supposé, utiliser le noyau de transition du modèle peut alors être trop contraignant. Ainsi, on préfèrera ici une marche aléatoire autour des particules précédemment simulées, pondérée par l'observation $Y_{k+1}$\footnote{C'est exactement ici l'idée du filtre de Kalman}. Par exemple, si on considère une marche aléatoire Gaussienne sur le logarithme de la particule, et le processus d'observation, on a
+Il n'est pas nécessairement conseillé de prendre comme noyau de transition celui défini par le modèle. 
+
+ATTENTION   je ne suis pas tout à fait d'accord avec cet argument, notamment le vrai jeu de parameters. Le probleme de prendre le noyau vient du fait qu'on n'utilise pas l'info des données !!
+
+En effet, en pratique, le vrai jeu de paramètres n'est jamais connu. Pour un jeu de paramètres supposé, utiliser le noyau de transition du modèle peut alors être trop contraignant. Ainsi, on préfèrera ici une marche aléatoire autour des particules précédemment simulées, pondérée par l'observation $Y_{k+1}$\footnote{C'est exactement ici l'idée du filtre de Kalman}. Par exemple, si on considère une marche aléatoire Gaussienne sur le logarithme de la particule, et le processus d'observation, on a
 \begin{align}
 \log\xi_{k+1}^i\vert \log\xi_k^i& \sim \mathcal{N}(\log\xi_k^i,\sigma^2_{\text{RW}})
 \intertext{Dans ce cas, on a alors}
