@@ -796,73 +796,232 @@ legend("top",horiz = T,bty="n",pch=20,col=c("black","blue"),
 \end{figure}
 \textbf{Filtrage:} On ne considère que $Y_{1:3}$  \only<2-3>{\textbf{Lissage:} On considère $Y_{1:5}$} 
 \end{frame}
-\begin{frame}{Approche directe et naïve}
-Pour chaque indice $i$, on considère la trajectoire simulée $\xi_{0:n}^i$ associée au poids $\omega_n^i$.\\
-On fait alors l'approximation particulaire suivante:
-$$ \phi_{k\vert n} \simeq \left(\xi_{0:n}^i(k),\omega_n^i \right)_{i=1,\dots,N}$$
+
+\begin{frame}[plain]{Estimation de $\phi_{k\vert n}$, approche directe (et naïve)}
+\textbf{Suite au filtrage:} pour chaque indice $i$, on considère la trajectoire simulée $\xi_{0:n}^i$ associée au poids $\omega_n^i$.
+$$\text{Approximation: } \phi_{k\vert n} \simeq \left(\rouge{\xi_{0:n}^i(k)},{\color{blue} \omega_n^i} \right)_{i=1,\dots,G}$$
 \begin{figure}
-\includegraphics[scale=0.3]{traj_first-1}
-\caption{Représentation des trajectoires de particules pour le filtre sans rééchantillonnage. La couleur correspond au poids relatif de chaque trajectoire. Quand la trajectoire est blanche, son poids relatif est nul. Ici, une seule trajectoire contribuerait au calcul des lois de lissage.}
+\centering
+\vspace{-\baselineskip}
+<<show_traj_liss,echo=F,fig.show=T,results="hide",fig.height=3,fig.width=5>>=
+par(mar=c(3,1,1,1))
+matplot(t(Xs1),type="b",col="black",lty=1,lwd=0.5,cex=0.8,
+        ylab="",xlab="",cex.axis=1.2,yaxt="n",pch=20)
+rect(9.5,min(Xs1),10.5,max(Xs1)+10,border="red",lwd=2)
+rect(nYear-0.5,min(Xs1),nYear+0.5,max(Xs1)+10,border="blue",lwd=2,lty=2)
+text(x = nYear,y=max(Xs1)-10,labels = expression(omega[n]),
+     cex=1,col="blue")
+@
 \end{figure}
 \end{frame}
-% \begin{frame}
-% \begin{figure}
-% \centering
-% <<geneal,echo=F,fig.width=6,fig.height=6>>=
-% par(mfrow=c(4,1),mar=c(1,1,1,1))
-% matplot((nYear-2):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
-%        t(Geneal)[(nYear-2):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
-% matplot((nYear-10):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
-%        t(Geneal)[(nYear-10):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
-% matplot((nYear-20):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
-%        t(Geneal)[(nYear-20):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
-% matplot((1):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
-%        t(Geneal)[(1):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
-% @
-% \end{figure}
-% \subsection{Approche par simulation "backward"}
-% Dans cette approche, on souhaite obtenir l'approximation d'une espérance de type: 
-% \begin{equation}
-% \mathbb{E}[f(X_{k:l})\vert Y_{0:n}]\label{eq:smooth:exp}.
-% \end{equation}
-% Pour ce faire,  on effectura $N$ simulations de trajectoires possible, notées $\{\xi_{0:n}^i\}_{i=1,\dots,N}$ et on approchera \eqref{eq:smooth:exp} par 
-% \begin{equation}
-% \frac{1}{N}\sum_{i=1}^{N} f\left(\xi_{0:n}^i(k:p)\right)
-% \end{equation}
-% L'idée de l'approche par simulation backward est de réutiliser l'ensemble des couples poids particules simulées lors du filtrage afin de simuler des trajectoires possibles.\\
-% La procédure est intuitive, pour un point d'arrivée $(\xi_n^i,\omega_n^i)$ correspondant à la particule $i$, on simule son géniteur en tirant selon une multinomiale de poids
-% \begin{equation}
-% \Lambda_{n-1}^{j,i} = \frac{\omega_{n-1}^j q(\xi_{n-1}^j,\xi_{n}^i )}{\sum_{\ell=1}^N\omega_{n-1}^\ell q(\xi_{n-1}^\ell,\xi_{n}^i)}
-% \label{eq:Lambdas}
-% \end{equation}
-% Aisni, le poids de chaque ancêtre est un compromis entre son poids de filtrage et la vraisemblance qu'il soit l'ancêtre du candidat considéré.\\ 
-% On répète cette procédure itérativement afin d'obtenir une trajectoire.\\
-% La fonction suivante permet la simulation
-% \end{frame}
-% \begin{frame}[plain]
-% \begin{figure}
-% \centering
-% <<simu_Ntraj,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide">>=
-% Xb <- replicate(1,rbackward(Xs2,ws2)$traj)
-% par(mfrow=c(3,1),mar=c(1,1,1,1))
-% foo <- function(lag,Inds,Xs){
-%   plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
-%      type="p",pch=20,xlim=c(1,nYear),col="lightgray",
-%      ylim=range(c(0,range(biomass),range(bounds))))
-%   sapply(1:lag,function(i){
-%     points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
-%   })
-%   matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
-%         add=T,lty=1,type="b",pch=20)
-% }
-% foo(1,Xb,Xs2)
-% foo(2,Xb,Xs2)
-% foo(29,Xb,Xs2)
-% @
-% \caption{Simulation d'une trajectoire avec l'algorithme de simulation backward. Les ancêtres sont calculés à l'aide des poids de l'équation \eqref{eq:Lambdas}}
-% \label{fig:back:sim:1traj}
-% \end{figure}
-% \end{frame}
+\begin{frame}{Approche naïve, cas sans rééchantillonage.}
+\begin{figure}
+\includegraphics[scale=0.6]{traj_first-1}
+\caption{Trajectoires et poids associées}
+\end{figure}
+\end{frame}
+<<geneal_bm1,echo=F,fig.show="hide",results="hide">>=
+XsG <- Xs2
+for(i in 1:nYear){
+  XsG[,i] <- Xs2[Geneal[,i],i]
+}
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+matplot(t(Xs2),pch=20,type="p",col="lightgray",
+        ylab="",xlab="",yaxt="n",ylim=range(Xs2))
+matplot((nYear-1):nYear,ylab="",xlab="",xaxt="n",yaxt="n",add=T,
+       t(XsG)[(nYear-1):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
+@
+<<geneal_bm2,echo=F,fig.show="hide",,results="hide">>=
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+matplot(t(Xs2),pch=20,type="p",col="lightgray",
+        ylab="",xlab="",yaxt="n",ylim=range(Xs2))
+matplot((nYear-10):nYear,ylab="",xlab="",xaxt="n",yaxt="n",add=T,
+       t(XsG)[(nYear-10):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
+@
+<<geneal_bm3,echo=F,fig.show="hide",results="hide">>=
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+matplot(t(Xs2),pch=20,type="p",col="lightgray",
+        ylab="",xlab="",yaxt="n",ylim=range(Xs2))
+matplot((nYear-20):nYear,ylab="",xlab="",xaxt="n",yaxt="n",add=T,
+       t(XsG)[(nYear-20):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
+@
+<<geneal_bm4,echo=F,fig.show="hide",results="hide">>=
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+matplot(t(Xs2),pch=20,type="p",col="lightgray",
+        ylab="",xlab="",yaxt="n",ylim=range(Xs2))
+matplot((1):nYear,ylab="",xlab="",xaxt="n",yaxt="n",add=T,
+       t(XsG)[(1):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
+@
+<<geneal_bm5,echo=F,fig.show="hide",results="hide">>=
+
+par(mfrow=c(1,1),mar=c(3,1,1,1))
+matplot(t(Xs2),pch=20,type="p",col="lightgray",
+        ylab="",xlab="",yaxt="n",ylim=range(Xs2))
+matplot((1):nYear,col="black",add=T,
+       t(XsG)[(1):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
+rect(9.5,min(Xs2),10.5,max(Xs2)+10,border="red",lwd=2)
+rect(nYear-0.5,min(Xs2),nYear+0.5,max(Xs2)+10,border="blue",lwd=2,lty=2)
+text(x = nYear,y=max(Xs2),labels = expression(omega[n]),
+     cex=1.2,col="blue")
+@
+\begin{frame}[plain]{Cas avec rééchantillonnage}
+Dans ce cas, les trajectoires sont associées à la généalogie du resampling. \textbf{Il faut donc à chaque fois stocker la généalogie des particules!}
+\begin{figure}
+\centering
+\only<2>{\includegraphics[scale=0.35]{geneal_bm1-1.pdf}}
+\only<2> {\caption{Ancêtre des particules $(\xi_n^i)_{i=1,\dots,G}$, à 1 génération}}
+\only<3>{\includegraphics[scale=0.35]{geneal_bm2-1.pdf}}
+\only<3> {\caption{Ancêtre des particules $(\xi_n^i)_{i=1,\dots,G}$, à 10 générations}}
+\only<4>{\includegraphics[scale=0.35]{geneal_bm3-1.pdf}}
+\only<4> {\caption{Ancêtre des particules $(\xi_n^i)_{i=1,\dots,G}$, à 20 générations}}
+\only<5>{\includegraphics[scale=0.35]{geneal_bm4-1.pdf}}
+\only<5> {\caption{Ancêtre des particules $(\xi_n^i)_{i=1,\dots,G}$, à 30 générations}}
+\end{figure}
+\end{frame}
+\begin{frame}[plain]{Approche naïve avec resampling}
+\begin{figure}
+\centering
+\vspace{-\baselineskip}
+\includegraphics[scale=0.35]{geneal_bm5-1.pdf}
+\caption{Approximation de $\phi_{k\vert n}$ sur très peu de points!}
+\end{figure}
+\end{frame}
+\begin{frame}{Lissage backward}
+\begin{block}{Principe du "backward smoothing"}
+Afin d'approcher $\phi_{k\vert n}$ plus intelligement, on fait une \textbf{passe arrière} pour calculer de nouveaux poids, les \textbf{poids de lissage}, pour toutes les particules simulées lors du filtrage
+\end{block}
+\small{
+      \begin{algorithm}[H]\textbf{{Approximation de $\phi_{k\vert n}$}}\\
+        \For{ i in 1:G}{
+          Fixer $\omega_{n\vert n}^i=\tilde{\omega}_n^i$
+        }
+        \For{ $\ell$ in (n-1):0}{
+          \For{ i in 1:G}{
+          Calculer $$\omega_{\ell\vert n}^i = \omega_\ell^i\sum_{j=1}^G \omega_{\ell+1\vert n}^j \frac{m(\xi_\ell^i,\xi_{\ell+1}^j)}{\sum_{p=1}^G \omega_{\ell}^p m(\xi_\ell^p,\xi_{\ell+1}^j)} $$
+        }
+        }
+      \end{algorithm}
+      }
+\end{frame}
+<<backwardsmoothing,echo=F>>=
+wsSm <- ws2
+for(k in (nYear-1):1){
+  msk <- sapply(1:G,function(j){
+    ws2[,k]*mtheta(Xs2[,k],Xs2[j,k+1],
+                 capt_old = capt[k],theta = theta)})#Calcul de
+  for(i in 1:G){
+    msj <- mtheta(Xs2[i,k],Xs2[,k+1],
+                 capt_old = capt[k],theta = theta)#Calcul des densités
+    
+    wsSm[i,k] = ws2[i,k]*sum(sapply(1:G,function(j){
+      wsSm[j,k+1]*msj[j]/sum(msk[,j])}))
+  }
+}
+@
+<<comp_sf,echo=F,fig.show="hide">>=
+par(mar=c(3,1,1,1))
+ind = 5
+plot(density(Xs2[,ind],weights = ws2[,ind]),main="",yaxt="n",
+     ylab="n",xaxt="n",lwd=1.5)
+lines(density(Xs2[,ind],weights = wsSm[,ind]),col="red",lwd=1.5)
+legend("topleft",bty = "n",lwd=1.5,col=c("black","red"),legend=c("Filtrage","Lissage"),cex = 1.5)
+abline(v=biomass[ind],col="blue")
+mtext(at=c(biomass[ind],abundanceIndex[ind]),text = c("True","Obs"),
+      col=c("blue","orange"),font=2,side=1,cex=1.5)
+abline(v=abundanceIndex[ind],col="orange")
+@
+\begin{frame}{Comparaison Filtrage Lissage}
+\begin{figure}
+\includegraphics[scale=0.35]{comp_sf-1}
+\caption{Exemple la loi de filtrage et lissage en $k=5$}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Approche par simulation "backward"}
+Dans cette approche, on souhaite obtenir l'approximation d'une espérance de type:
+\begin{equation}
+\mathbb{E}[f(X_{k:\ell})\vert Y_{0:n}]\label{eq:smooth:exp}.
+\end{equation}
+\textbf{L'espérance est cette fois sur la loi jointe.}
+Pour ce faire,  on effectura $N$ simulations de trajectoires possible, notées $\{\xi_{0:n}^i\}_{i=1,\dots,N}$ et on approchera \eqref{eq:smooth:exp} par
+\begin{equation}
+\frac{1}{N}\sum_{i=1}^{N} f\left(\xi_{0:n}^i(k:\ell)\right)
+\end{equation}
+\end{frame}
+
+\begin{frame}{Simulation backward}
+On réutilise l'ensemble des couples poids particules simulés lors du filtrage.\\
+La procédure est intuitive, pour un point d'arrivée $(\xi_n^i,\omega_n^i)$ correspondant à la particule $i$, on tire son ancêtre  parmi les $(\xi_{n-1}^i$ en tirant selon une multinomiale de poids
+\begin{equation}
+\Lambda_{n-1}^{j,i} = \frac{\omega_{n-1}^j q(\xi_{n-1}^j,\xi_{n}^i )}{\sum_{\ell=1}^N\omega_{n-1}^\ell q(\xi_{n-1}^\ell,\xi_{n}^i)}
+\label{eq:Lambdas}
+\end{equation}
+\textbf{Poids de chaque ancêtre:} compromis entre poids de filtrage et la vraisemblance de faire le chemin entre les deux points.\\
+On répète cette procédure itérativement afin d'obtenir une trajectoire.
+\end{frame}
+\begin{frame}{Simulation backward}
+\small{
+      \begin{algorithm}[H]\textbf{Simulation backward d'une trajectoire}\\
+        Tirer l'indice $I_n$ du point final avec les poids $\omega_n^i$\\
+        Fixer $\xi_{n:n}(n)=\xi_n^{I_n}$
+        \For{k in (n-1):0}{
+          Tirer le nouvel indice $I_k$ avec les poids $$\Lambda_k^i=  \frac{\omega_k^i*m(\xi_k^i,\xi_{k+1}^{I_{k+1}})}{\sum_{\ell=1}^G \omega_k^\ell*m(\xi_k^\ell,\xi_{k+1}^{I_{k+1}})}$$
+          Fixer $\xi_{k:n}(k)=\xi_k^{I_k}$
+        }
+      \end{algorithm}
+      
+}
+\end{frame}
+<<simu_Ntraj,echo=F,message=FALSE,fig.show=T,results="hide",fig.show="hide">>=
+rbackward <- function(Xs,ws){
+  n <- ncol(Xs)
+  N <- length(ws[,n])
+  traj <- rep(NA,n)
+  inds <- rep(NA,n)
+  inds[n] <- sample(1:N,size=1,prob = ws[,n])#Indice initial
+  traj[n] <- Xs[inds[n],n]#Particule initiale
+  for(i in (n-1):1){
+    ms <- mtheta(Xs[,i],traj[i+1],
+                 capt_old = capt[i],theta = theta)#Calcul des densités
+    #de transition
+    Lambdas = ws[,i]*ms/sum(ws[,i]*ms)#Calcul des poids
+    inds[i] <- sample(1:N,size=1,prob = Lambdas)
+    traj[i] <- Xs[inds[i],i]
+  }
+  c(list(traj=traj,inds=inds))
+}
+Xb <- replicate(1,rbackward(Xs2,ws2)$traj)
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+foo <- function(lag,Inds,Xs){
+  plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
+     type="p",pch=20,xlim=c(1,nYear),col="lightgray",
+     ylim=range(c(0,range(biomass),range(bounds))))
+  sapply(1:lag,function(i){
+    points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
+  })
+  matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
+        add=T,lty=1,type="b",pch=20)
+}
+foo(1,Xb,Xs2)
+foo(2,Xb,Xs2)
+foo(29,Xb,Xs2)
+Xb <- replicate(G,rbackward(Xs2,ws2)$traj)
+foo(29,Xb,Xs2)
+lines(biomass,lwd=4,col="black")
+@
+\begin{frame}[plain]{Simulation backward}
+\begin{figure}
+\centering
+\only<1>{\includegraphics[scale=0.4]{simu_Ntraj-1}
+\caption{Simulation d'un ancêtre pour $\xi_n^i$}}
+\only<2>{\includegraphics[scale=0.4]{simu_Ntraj-2}
+\caption{Simulation de deux générations d'ancêtre pour $\xi_n$}}
+\only<3>{\includegraphics[scale=0.4]{simu_Ntraj-3}
+\caption{Simulation de 29 générations d'ancêtre pour $\xi_n$}}
+\only<4>{\includegraphics[scale=0.4]{simu_Ntraj-4}
+\caption{Simulation de 29 générations d'ancêtre pour $\xi_n$, 20 trajectoires}}
+\end{figure}
+\end{frame}
 % \begin{frame}[plain]
 % \begin{figure}
 % \centering
@@ -880,7 +1039,7 @@ $$ \phi_{k\vert n} \simeq \left(\xi_{0:n}^i(k),\omega_n^i \right)_{i=1,\dots,N}$
 %         add=T,lty=1,type="b",pch=20)
 % }
 % foo(29,Xb,Xs2)
-% lines(biomass,lwd=3,col="red")
+% 
 % @
 % \caption{Smulation de 30 trajectoires grâce à l'algorithme de backward simulation. La vraie trajectoire des biomasses est en rouge.}
 % \label{fig:back:sim:alltraj}
