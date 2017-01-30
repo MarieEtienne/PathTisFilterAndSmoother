@@ -278,3 +278,55 @@ matplot((nYear-20):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
 matplot((1):nYear,ylab="",xlab="",xaxt="n",yaxt="n",col="black",
        t(Geneal)[(1):nYear,],lty=1,type="b",pch=20,xlim=c(1,nYear))
 
+## ----simbackward---------------------------------------------------------
+rbackward <- function(Xs,ws){
+  n <- ncol(Xs)
+  N <- length(ws[,n])
+  traj <- rep(NA,n)
+  inds <- rep(NA,n)
+  inds[n] <- sample(1:N,size=1,prob = ws[,n])#Indice initial
+  traj[n] <- Xs[inds[n],n]#Particule initiale
+  for(i in (n-1):1){
+    ms <- mtheta(Xs[,i],traj[i+1],
+                 capt_old = capt[i],theta = theta)#Calcul des densités
+    #de transition
+    Lambdas = ws[,i]*ms/sum(ws[,i]*ms)#Calcul des poids
+    inds[i] <- sample(1:N,size=1,prob = Lambdas)
+    traj[i] <- Xs[inds[i],i]
+  }
+  c(list(traj=traj,inds=inds))
+}
+
+## ----simu_Ntraj,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide"----
+Xb <- replicate(1,rbackward(Xs2,ws2)$traj)
+par(mfrow=c(3,1),mar=c(1,1,1,1))
+foo <- function(lag,Inds,Xs){
+  plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
+     type="p",pch=20,xlim=c(1,nYear),col="lightgray",
+     ylim=range(c(0,range(biomass),range(bounds))))
+  sapply(1:lag,function(i){
+    points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
+  })
+  matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
+        add=T,lty=1,type="b",pch=20)
+}
+foo(1,Xb,Xs2)
+foo(2,Xb,Xs2)
+foo(29,Xb,Xs2)
+
+## ----simu_alltraj,echo=F,fig.height=5,fig.width=6,message=FALSE,fig.show=T,results="hide"----
+Xb <- replicate(G,rbackward(Xs2,ws2)$traj)
+par(mfrow=c(1,1),mar=c(1,1,1,1))
+foo <- function(lag,Inds,Xs){
+  plot(rep(nYear,G),Xs2[,nYear],ylab="",xlab="",xaxt="n",yaxt="n",
+     type="p",pch=20,xlim=c(1,nYear),col="lightgray",
+     ylim=range(c(0,range(biomass),range(bounds))))
+  sapply(1:lag,function(i){
+    points(rep(nYear-i,G),Xs[,nYear-i],pch=20,col="lightgray")
+  })
+  matplot((nYear-lag):nYear,Inds[(nYear-lag):nYear,],
+        add=T,lty=1,type="b",pch=20)
+}
+foo(29,Xb,Xs2)
+lines(biomass,lwd=3,col="red")
+
